@@ -4,6 +4,8 @@ Before start, make sure you have successfully run clash with the help of the [do
 
 ## Getting Started
 
+### systemd
+
 1. Download `script.py` and `updater.py` to `/etc/clash`
 
 2. Modify `config.yaml`
@@ -44,7 +46,7 @@ Before start, make sure you have successfully run clash with the help of the [do
     [Unit]
     Description=Clash hosting updater daemon, A rule-based script builder in Python.
     Requires=clash.service
-    
+
     [Service]
     Type=simple
     Restart=always
@@ -52,7 +54,7 @@ Before start, make sure you have successfully run clash with the help of the [do
     WorkingDirectory=/etc/clash
     ExecReload=/bin/kill -s HUP $MAINPID
     KillMode=process
-    
+
     [Install]
     WantedBy=multi-user.target
     ```
