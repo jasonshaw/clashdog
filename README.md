@@ -2,6 +2,10 @@
 
 Before start, make sure you have successfully run clash with the help of the [documentation](https://github.com/Dreamacro/clash/wiki).
 
+### What is this?
+
+When the subscription is given a complete configuration file, rule-providers will be useless, even if the `rules` are changed to `payload`, `classical` can not replace `rules`. without modifying the premise of `config.yaml`, you can only use script, subject to starlark limited functionality, this updater was born.
+
 ## Getting Started
 
 1\. Download `script.py` and `updater.py` to `/etc/clash`
