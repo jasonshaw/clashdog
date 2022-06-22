@@ -8,6 +8,7 @@ Before your start, make sure you have successfully run clash with the help of th
 
 2. Modify `config.yaml`
 
+    ```
     # The updater will reload the configuration using the RESTful API
     external-controller: :9090
     mode: Script
@@ -15,9 +16,11 @@ Before your start, make sure you have successfully run clash with the help of th
     # https://github.com/Dreamacro/clash/releases/tag/premium
     script:
         path: ./script.rules.py
+    ```
 
 3. Configure [clash systemd](https://github.com/Dreamacro/clash/wiki/clash-on-a-daemon#systemd)
 
+    ```
     [Unit]
     Description=Clash daemon, A rule-based proxy in Go.
     After=network.target
@@ -31,11 +34,13 @@ Before your start, make sure you have successfully run clash with the help of th
 
     [Install]
     WantedBy=multi-user.target
+    ```
 
 4. Install python3, minimum supported 3.6.8
 
 5. Create the systemd configuration file at `/etc/systemd/system/updater.service`
 
+    ```
     [Unit]
     Description=Clash hosting updater daemon, A rule-based script builder in Python.
     Requires=clash.service
@@ -50,6 +55,7 @@ Before your start, make sure you have successfully run clash with the help of th
 
     [Install]
     WantedBy=multi-user.target
+    ```
 
 `updater.py` takes two parameters, in order, `DefaultPolicies` and `URL`.
 The updater checks for the existence of rule-policies in `config.yaml`
