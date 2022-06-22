@@ -58,9 +58,7 @@ Before start, make sure you have successfully run clash with the help of the [do
     ```
 
 `updater.py` takes two parameters, in order, `DefaultPolicies` and `URL`.
-
 The updater checks for the existence of rule-policies in `config.yaml`(proxy-groups only) and uses `DefaultPolicies` when they do not exist.
-
 The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
 
 Launch updater on system startup with:
