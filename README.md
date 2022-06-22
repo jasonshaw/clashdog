@@ -4,11 +4,9 @@ Before start, make sure you have successfully run clash with the help of the [do
 
 ## Getting Started
 
-### systemd
+1\. Download `script.py` and `updater.py` to `/etc/clash`
 
-1. Download `script.py` and `updater.py` to `/etc/clash`
-
-2. Modify `config.yaml`
+2\. Modify `config.yaml`
 
     ```yaml
     # The updater will reload the configuration using the RESTful API
@@ -20,7 +18,7 @@ Before start, make sure you have successfully run clash with the help of the [do
         path: ./script.rules.py
     ```
 
-3. Configure [clash systemd](https://github.com/Dreamacro/clash/wiki/clash-on-a-daemon#systemd)
+3\. Configure [clash systemd](https://github.com/Dreamacro/clash/wiki/clash-on-a-daemon#systemd)
 
     ```ini
     [Unit]
@@ -38,9 +36,9 @@ Before start, make sure you have successfully run clash with the help of the [do
     WantedBy=multi-user.target
     ```
 
-4. Install python3, minimum supported 3.6.8
+4\. Install python3, minimum supported 3.6.8
 
-5. Create the systemd configuration file at `/etc/systemd/system/updater.service`
+5\. Create the systemd configuration file at `/etc/systemd/system/updater.service`
 
     ```ini
     [Unit]
@@ -59,17 +57,17 @@ Before start, make sure you have successfully run clash with the help of the [do
     WantedBy=multi-user.target
     ```
 
-    `updater.py` takes two parameters, in order, `DefaultPolicies` and `URL`.
-    The updater checks for the existence of rule-policies in `config.yaml`
-    (proxy-groups only) and uses `DefaultPolicies` when they do not exist.
-    The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
+`updater.py` takes two parameters, in order, `DefaultPolicies` and `URL`.
+The updater checks for the existence of rule-policies in `config.yaml`
+(proxy-groups only) and uses `DefaultPolicies` when they do not exist.
+The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
 
-    Launch updater on system startup with:
+Launch updater on system startup with:
 
-        $ systemctl enable updater
+    $ systemctl enable updater
 
-    Launch updater immediately with:
+Launch updater immediately with:
 
-        $ systemctl start updater
+    $ systemctl start updater
 
-    You can change the service name to your needs.
+You can change the service name to your needs.
