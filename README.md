@@ -1,6 +1,6 @@
 # clash-hosting-updater
 
-Before your start, make sure you have successfully run clash with the help of the [documentation](https://github.com/Dreamacro/clash/wiki).
+Before start, make sure you have successfully run clash with the help of the [documentation](https://github.com/Dreamacro/clash/wiki).
 
 ## Getting Started
 
@@ -8,7 +8,7 @@ Before your start, make sure you have successfully run clash with the help of th
 
 2. Modify `config.yaml`
 
-    ```
+    ```yaml
     # The updater will reload the configuration using the RESTful API
     external-controller: :9090
     mode: Script
@@ -69,10 +69,5 @@ Launch updater on system startup with:
 Launch updater immediately with:
 
     $ systemctl start updater
-
-Check the health and logs of updater with:
-
-    $ systemctl status updater
-    $ journalctl -xe
 
 You can change the service name to your needs.
