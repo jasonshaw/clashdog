@@ -64,12 +64,12 @@ Before start, make sure you have successfully run clash with the help of the [do
     (proxy-groups only) and uses `DefaultPolicies` when they do not exist.
     The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
 
-Launch updater on system startup with:
-
-    $ systemctl enable updater
-
-Launch updater immediately with:
-
-    $ systemctl start updater
-
-You can change the service name to your needs.
+    Launch updater on system startup with:
+    
+        $ systemctl enable updater
+    
+    Launch updater immediately with:
+    
+        $ systemctl start updater
+    
+    You can change the service name to your needs.
