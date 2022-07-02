@@ -4,7 +4,7 @@ Before start, make sure you have successfully run clash with the help of the [do
 
 ### What is this?
 
-When the subscription is given a complete configuration file, rule-providers will be useless, even if the `rules` are changed to `payload`, `classical` can not replace `rules`. Without modifying the premise of `config.yaml`, you can only use script, subject to starlark limited functionality, this updater was born.
+When the subscription is given a complete configuration file, rule-providers will be useless, even if the `rules` are changed to `payload`, `classical` can not replace rules. Without modifying the premise of `config.yaml`, you can only use script, subject to starlark limited functionality, this updater was born.
 
 ## Getting Started
 
