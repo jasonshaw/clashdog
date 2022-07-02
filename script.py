@@ -413,16 +413,17 @@ def match(ctx, metadata):
 # see: https://github.com/bazelbuild/starlark/blob/master/spec.md
 def main(ctx, metadata):
   rule = match(ctx, metadata)
-  if rule[0]:
+  if rule:
     host = metadata['host']
     out = [
+      metadata['type'],
       '[{0}]'.format(metadata['network'].upper()),
       '[SRC] {0}:{1}'.format(metadata['src_ip'], metadata['src_port']),
       '[DST] {0}:{1}'.format(metadata['dst_ip'], metadata['dst_port'])
     ]
     if host != '':
-      out.insert(1, host)
-    ctx.log('{0} - {1}'.format(' '.join(out), rule[1]))
+      out.insert(2, host)
+    ctx.log('{0} | {1}'.format(' '.join(out), rule[1]))
     return rule[0]
 
   ip = metadata['dst_ip']
