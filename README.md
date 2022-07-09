@@ -54,7 +54,7 @@ Requires=clash.service
 [Service]
 Type=simple
 Restart=always
-ExecStart=/usr/bin/python3 -u /etc/clash/updater.py DefaultPolicies URL
+ExecStart=/usr/bin/python3 -u /etc/clash/updater.py default-policies url
 WorkingDirectory=/etc/clash
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=process
@@ -63,8 +63,8 @@ KillMode=process
 WantedBy=multi-user.target
 ```
 
-`updater.py` takes two parameters, in order, `DefaultPolicies` and `URL`.
-The updater checks for the existence of rule-policies in `config.yaml`(proxy-groups only) and uses `DefaultPolicies` when they do not exist.
+`updater.py` takes two parameters, in order, `default-policies` and `url`.
+The updater checks for the existence of rule-policies in `config.yaml`(proxy-groups only) and uses `default-policies` when they do not exist.
 The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
 
 Launch updater on system startup with:
