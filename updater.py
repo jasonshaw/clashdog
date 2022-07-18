@@ -12,6 +12,8 @@ from os import path
 from time import sleep
 from requests_file import FileAdapter
 from urllib.parse import urlparse
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 def save_as_yaml(resp):
   filename = re.findall('filename="(.+)"', resp.headers['Content-Disposition'])[0].lower()
@@ -46,6 +48,11 @@ def parse_rule(rules, groups, _Policies):
 def filespt_get(url):
   s = requests.Session()
   s.mount('file://', FileAdapter())
+
+  retries = Retry(connect=3, backoff_factor=10)
+  adapter = HTTPAdapter(max_retries=retries)
+  s.mount('http://', adapter)
+  s.mount('https://', adapter)
 
   i = 0
   while True:
