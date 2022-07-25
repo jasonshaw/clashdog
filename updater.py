@@ -26,7 +26,7 @@ def save_as_yaml(resp):
 # ['Type', [{IP, Mask}, 'Matcher'], 'Policies', 'original_rule_string']
 #
 # ['MATCH', 'Policies', 'original_rule_string'] 
-def parse_rule(rules, groups, _Policies):
+def parse_rule(rules, Policies, _Policies):
   for i, e in enumerate(rules):
     rule = e.split(',')
 
@@ -38,7 +38,7 @@ def parse_rule(rules, groups, _Policies):
       rule[1] = [ipnet, rule[1]]
 
     p = 2 if len(rule) >= 3 else 1
-    if rule[p] not in groups:
+    if rule[p] not in Policies:
       logging.warning('Missing Policies %s', e)
       rule[p] = _Policies
 
@@ -91,19 +91,21 @@ def merge_rules(e, resp):
   return rules
 
 def save_as_skpy(resp, _Policies, e):
-  # 获取 proxy-groups 的名称，必须每次重新读取，以应对文件变动
+  # 获取 Policies 的名称，必须每次重新读取，以应对文件变动
   with open('./config.yaml') as stream:
-    groups = yaml.load(stream, Loader = yaml.Loader)['proxy-groups']
-    for i in range(len(groups)):
-      groups[i] = groups[i]['name']
-    groups.insert(0, 'DIRECT')
-    groups.insert(1, 'REJECT')
+    config = yaml.load(stream, Loader = yaml.Loader)
+    Policies = config.get('proxy-groups', [])
+    Policies.extend(config.get('proxies', []))
+    for i in range(len(Policies)):
+      Policies[i] = Policies[i]['name']
+    Policies.insert(0, 'DIRECT')
+    Policies.insert(1, 'REJECT')
 
   with open('./script.rules.py', 'w', encoding = 'utf-8', newline = '\n') as stream:
     # 解析规则
     stream.write('rules = [\n')
     rules = merge_rules(e, resp)
-    parse_rule(rules, groups, _Policies)
+    parse_rule(rules, Policies, _Policies)
     for i, r in enumerate(rules):
       stream.write('{0}{1}\n'.format(r, ',' if i + 1 < len(rules) else '\n]'))
 
@@ -138,8 +140,7 @@ Clash hosting updater, A rule-based script builder in Python.
   * The `url` option is the same as the positional arguments `url`, and you can also use the FILE scheme.
 ''')
   parser.add_argument('default_policies', help='''The updater checks for the existence of rule-policies in
-                                                  config.yaml(proxy-groups only) and uses default-policies
-                                                  when they do not exist.''')
+                                                  config.yaml and uses default-policies when they do not exist.''')
   parser.add_argument('url', help='The clash hosting address.')
   parser.add_argument('-e', '--extend-front', action='append', help='Merge rules forward.')
   args = parser.parse_args()
