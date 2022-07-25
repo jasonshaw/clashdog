@@ -64,7 +64,7 @@ WantedBy=multi-user.target
 ```
 
 `updater.py` takes two parameters, in order, `default_policies` and `url`.
-The updater checks for the existence of rule-policies in `config.yaml`(proxy-groups only) and uses `default_policies` when they do not exist.
+The updater checks for the existence of rule-policies in `config.yaml` and uses `default_policies` when they do not exist.
 The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
 Try `python3 updater.py -h` for more information.
 
