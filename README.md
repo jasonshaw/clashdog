@@ -4,9 +4,11 @@ Before start, make sure you have successfully run clash with the help of the [do
 
 UDP related settings are not supported, all UDP connections are handled by default.
 
-### What is this?
+### Applicable scenarios
 
-When the subscription is given a full configuration file, rule-providers will be useless, even if the `rules` are changed to `payload`, `classical` can not replace rules. Without modifying the premise of `config.yaml`, you can only use script mode, subject to starlark limited functionality, this updater will help you build scripts quickly.
+* Subscription will overwrite the `config.yaml` file.
+* `classical` does not support full rules, no match no policies and...
+* A better way to Rule Provider.
 
 ## Getting Started
 
