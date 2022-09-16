@@ -27,6 +27,15 @@ def Base(path):
     return Separator
   return path
 
+# EqualFold reports whether s and t, interpreted as UTF-8 strings,
+# are equal under simple Unicode case-folding, which is a more general
+# form of case-insensitivity.
+#
+# see: https://github.com/golang/go/blob/master/src/strings/strings.go
+def EqualFold(s, t):
+  # TODO? Maybe this one is faster
+  return s.lower() == t.lower()
+
 '''
 net
 
@@ -96,10 +105,10 @@ v4InV6Prefix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff]
 # For a mask of this form, CIDRMask is the inverse of IPMask.Size.
 def CIDRMask(ones, bits):
   if bits != 8*IPv4len and bits != 8*IPv6len:
-    return
+    return nil
   if ones < 0 or ones > bits:
-    return
-  l = int(bits / 8)
+    return nil
+  l = bits / 8
   m = [0] * l
   n = uint(ones)
   for i in range(l):
@@ -110,6 +119,24 @@ def CIDRMask(ones, bits):
     m[i] = ~byte(0xff >> n)
     n = 0
   return m
+
+# IsPrivate reports whether ip is a private address, according to
+# RFC 1918 (IPv4 addresses) and RFC 4193 (IPv6 addresses).
+def IsPrivate(ip):
+  ip4 = To4(ip)
+  if ip4 != nil:
+    # Following RFC 1918, Section 3. Private Address Space which says:
+    #   The Internet Assigned Numbers Authority (IANA) has reserved the
+    #   following three blocks of the IP address space for private internets:
+    #     10.0.0.0        -   10.255.255.255  (10/8 prefix)
+    #     172.16.0.0      -   172.31.255.255  (172.16/12 prefix)
+    #     192.168.0.0     -   192.168.255.255 (192.168/16 prefix)
+    return ip4[0] == 10 or                    \
+    (ip4[0] == 172 and ip4[1]&0xf0 == 16) or  \
+    (ip4[0] == 192 and ip4[1] == 168)
+  # Following RFC 4193, Section 8. IANA Considerations which says:
+  #   The IANA has assigned the FC00::/7 prefix to "Unique Local Unicast".
+  return len(ip) == IPv6len and ip[0]&0xfe == 0xfc
 
 # Is p all zeros?
 def isZeros(p):
@@ -128,6 +155,7 @@ def To4(ip):
   and ip[10] == 0xff    \
   and ip[11] == 0xff:
     return ip[12:16]
+  return nil
 
 def allFF(b):
   for c in b:
@@ -143,7 +171,7 @@ def Mask(mask, ip):
     ip = ip[12:]
   n = len(ip)
   if n != len(mask):
-    return
+    return nil
   out = [0] * n
   for i in range(n):
     out[i] = ip[i] & mask[i]
@@ -152,29 +180,29 @@ def Mask(mask, ip):
 def networkNumberAndMask(n):
   ip = n["IP"]
   ip = To4(ip)
-  if not ip:
+  if ip == nil:
     ip = n["IP"]
     if len(ip) != IPv6len:
-      return None, None
+      return nil, nil
   m = n["Mask"]
   l = len(m)
   if False:
-    return None, None
+    return
   elif IPv4len == l:
     if len(ip) != IPv4len:
-      return None, None
+      return nil, nil
   elif IPv6len == l:
     if len(ip) == IPv4len:
       m = m[12:]
   else:
-    return None, None
+    return nil, nil
   return ip, m
 
 # Contains reports whether the network includes ip.
 def Contains(ip, n):
   nn, m = networkNumberAndMask(n)
   x = To4(ip)
-  if x:
+  if x != nil:
     ip = x
   l = len(ip)
   if l != len(nn):
@@ -190,21 +218,21 @@ def parseIPv4(s):
   for i in range(IPv4len):
     if len(s) == 0:
       # Missing octets.
-      return
+      return nil
     if i > 0:
       if s[0] != '.':
-        return
+        return nil
       s = s[1:]
     n, c, ok = dtoi(s)
     if not ok or n > 0xFF:
-      return
+      return nil
     if c > 1 and s[0] == '0':
       # Reject non-zero components with leading zeroes.
-      return
+      return nil
     s = s[c:]
     p[i] = byte(n)
   if len(s) != 0:
-    return
+    return nil
   return IPv4(p[0], p[1], p[2], p[3])
 
 # parseIPv6 parses s as a literal IPv6 address described in RFC 4291
@@ -229,19 +257,19 @@ def parseIPv6(s):
     # Hex number.
     n, c, ok = xtoi(s)
     if not ok or n > 0xFFFF:
-      return
+      return nil
 
     # If followed by dot, might be in trailing IPv4.
     if c < len(s) and s[c] == '.':
       if ellipsis < 0 and i != IPv6len-IPv4len:
         # Not the right place.
-        return
+        return nil
       if i+IPv4len > IPv6len:
         # Not enough room.
-        return
+        return nil
       ip4 = parseIPv4(s)
-      if not ip4:
-        return
+      if ip4 == nil:
+        return nil
       ip[i] = ip4[12]
       ip[i+1] = ip4[13]
       ip[i+2] = ip4[14]
@@ -262,13 +290,13 @@ def parseIPv6(s):
 
     # Otherwise must be followed by colon and more.
     if s[0] != ':' or len(s) == 1:
-      return
+      return nil
     s = s[1:]
 
     # Look for ellipsis.
     if s[0] == ':':
       if ellipsis >= 0: # already have one
-        return
+        return nil
       ellipsis = i
       s = s[1:]
       if len(s) == 0: # can be at end
@@ -276,12 +304,12 @@ def parseIPv6(s):
 
   # Must have used entire string.
   if len(s) != 0:
-    return
+    return nil
 
   # If didn't parse enough, expand ellipsis.
   if i < IPv6len:
     if ellipsis < 0:
-      return
+      return nil
     n = IPv6len - i
     for j in range(i - 1, ellipsis - 1, -1):
       ip[j+n] = ip[j]
@@ -289,7 +317,7 @@ def parseIPv6(s):
       ip[j] = 0
   elif ellipsis >= 0:
     # Ellipsis must represent at least one 0 group.
-    return
+    return nil
   return ip
 
 # ParseIP parses s as an IP address, returning the result.
@@ -305,6 +333,7 @@ def ParseIP(s):
       return parseIPv4(s)
     elif ':' == s[i]:
       return parseIPv6(s)
+  return nil
 
 # ParseCIDR parses s as a CIDR notation IP address and prefix length,
 # like "192.0.2.0/24" or "2001:db8::/32", as defined in
@@ -317,57 +346,63 @@ def ParseIP(s):
 def ParseCIDR(s):
   i = s.find('/')
   if i < 0:
-    return None, None, True
+    return nil, nil, {'Type': 'CIDR address', 'Text': s}
   addr, mask = s[:i], s[i+1:]
   iplen = IPv4len
   ip = parseIPv4(addr)
-  if not ip:
+  if ip == nil:
     iplen = IPv6len
     ip = parseIPv6(addr)
   n, i, ok = dtoi(mask)
-  if not ip or not ok or i != len(mask) or n < 0 or n > 8*iplen:
-    return None, None, True
+  if ip == nil or not ok or i != len(mask) or n < 0 or n > 8*iplen:
+    return nil, nil, {'Type': 'CIDR address', 'Text': s}
   m = CIDRMask(n, 8*iplen)
-  return ip, {'IP': Mask(m, ip), 'Mask': m}, False
+  return ip, {'IP': Mask(m, ip), 'Mask': m}, nil
 
 '''
 filter
 '''
-def should_resolve_ip(metadata, rule):
-  return 'IP' in rule[0] and not(len(rule) > 3 and rule[3] == 'no-resolve') \
-  and metadata['host'] != '' and metadata['dst_ip'] == ''
-
-def domain(metadata, rule):
+def rule_match(metadata, rule):
   if rule[0] == 'DOMAIN-SUFFIX':
-    return metadata['host'].endswith('.'+rule[1]) or rule[1] == metadata['host']
+    domain = metadata['host']
+    return domain.endswith('.'+rule[1]) or rule[1] == domain
   if rule[0] == 'DOMAIN-KEYWORD':
     return rule[1] in metadata['host']
   if rule[0] == 'DOMAIN':
     return rule[1] == metadata['host']
 
-# IP-CIDR6 is handled the same way as IP-CIDR
-# rule[1] = [{IP, Mask}, 'Matcher']
-#
-# see: https://github.com/Dreamacro/clash/blob/master/rule/ipcidr.go
-def ipcidr(metadata, rule):
-  ip = metadata['src_ipp'] if rule[0] == 'SRC-IP-CIDR' else metadata['dst_ipp']
-  return ip and Contains(ip, rule[1][0])
+  # IP-CIDR6 is handled the same way as IP-CIDR
+  # rule[1] = [{IP, Mask}, 'Matcher']
+  #
+  # see: https://github.com/Dreamacro/clash/blob/master/rule/ipcidr.go
+  if 'IP-CIDR' in rule[0]:
+    ip = metadata['src_ipp'] if rule[0] == 'SRC-IP-CIDR' else metadata['dst_ipp']
+    return ip != nil and Contains(ip, rule[1][0])
 
-def geoip(ctx, metadata, rule):
-  ip = metadata['dst_ip']
-  return ip != '' and ctx.geoip(ip).lower() == rule[1].lower()
+  if rule[0] == 'GEOIP':
+    ip = metadata['dst_ipp']
+    if ip == nil
+      return False
 
-def port(metadata, rule):
+    if EqualFold(rule[1], 'LAN'):
+      return IsPrivate(ip)
+    return EqualFold(metadata['IsoCode'], rule[1])
+
   if rule[0] == 'SRT-PORT':
     return metadata['src_port'] == rule[1]
   if rule[0] == 'DST-PORT':
     return metadata['dst_port'] == rule[1]
 
-def process(metadata, rule):
   if rule[0] == 'PROCESS-NAME':
-    return metadata['process_name'].lower() == rule[1].lower()
+    return EqualFold(metadata['process_name'], rule[1])
   if rule[0] == 'PROCESS-PATH':
-    return metadata['process_path'].lower() == rule[1].lower()
+    return EqualFold(metadata['process_path'], rule[1])
+
+  return False
+
+def should_resolve_ip(metadata, rule):
+  return 'IP' in rule[0] and not(len(rule) > 3 and rule[3] == 'no-resolve') \
+  and metadata['host'] != '' and metadata['dst_ip'] == ''
 
 # reimplement ctx.rule_providers.match(metadata) => boolean
 # return: ['Policies', 'original_rule_string']
@@ -375,54 +410,52 @@ def process(metadata, rule):
 # see: https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
 def match(ctx, metadata):
   resolved = False
-  found = False
   parsed = False
+  processFound = False
 
-  for rule in rules:
-    # rule[:-2] = ['Type', 'Matcher', 'Policies', 'Option']
-    # rule[:-2] = ['Type', 'Matcher', 'Policies']
-    # 
-    # rule[:-2] = ['MATCH', 'Policies']
+  # rule[:-2] = ['Type', 'Matcher', 'Policies']
+  # rule[:-2] = ['Type', 'Matcher', 'Policies', 'Option']
+  # rule[:-2] = ['MATCH', 'Policies']
+  #
+  # rule[-1] = 'original_rule_string'
+  for rule in _RULES:
     if not resolved and should_resolve_ip(metadata, rule):
       metadata['dst_ip'] = ctx.resolve_ip(metadata['host'])
       resolved = True
 
-    if not found and 'PROCESS-' in rule[0]:
-      path = ctx.resolve_process_name(metadata)
-      metadata['process_path'] = path
-      metadata['process_name'] = Base(path)
-      processFound = True
-
-    if not parsed and 'IP-CIDR' in rule[0]:
-      metadata['dst_ipp'] = ParseIP(metadata['dst_ip'])
+    if not parsed and 'IP' in rule[0]:
+      ip = metadata['dst_ip']
+      metadata['IsoCode'] = ctx.geoip(ip)
+      metadata['dst_ipp'] = ParseIP(ip)
       metadata['src_ipp'] = ParseIP(metadata['src_ip'])
       parsed = True
 
-    # rule[-1] = 'original_rule_string'
-    if metadata['host'] != '' and domain(metadata, rule)  \
-    or 'IP-CIDR' in rule[0] and ipcidr(metadata, rule)    \
-    or rule[0] == 'GEOIP' and geoip(ctx, metadata, rule)  \
-    or port(metadata, rule)                               \
-    or process(metadata, rule):
+    if not found and 'PROCESS' in rule[0]:
+      processFound = True
+      path = ctx.resolve_process_name(metadata)
+      metadata['process_path'] = path
+      metadata['process_name'] = Base(path)
+
+    if rule_match(metadata, rule):
       return [rule[2], rule[-1]]
     if rule[0] == 'MATCH':
       return [rule[1], rule[-1]]
+
+  return nil
 
 # see: https://github.com/Dreamacro/clash/wiki/premium-core-features
 # see: https://lancellc.gitbook.io/clash/clash-config-file/script
 # see: https://github.com/bazelbuild/starlark/blob/master/spec.md
 def main(ctx, metadata):
   rule = match(ctx, metadata)
-  if rule:
-    host = metadata['host']
+  if rule != nil:
     out = [
-      metadata['type'],
       '[{0}]'.format(metadata['network'].upper()),
-      '[SRC] {0}:{1}'.format(metadata['src_ip'], metadata['src_port']),
-      '[DST] {0}:{1}'.format(metadata['dst_ip'], metadata['dst_port'])
+      'type=' + metadata['type'],
+      'host=' + metadata['host'],
+      'src={0}:{1}'.format(metadata['src_ip'], metadata['src_port']),
+      'dst={0}:{1}'.format(metadata['dst_ip'], metadata['dst_port'])
     ]
-    if host != '':
-      out.insert(2, host)
     ctx.log('{0} | {1}'.format(' '.join(out), rule[1]))
     return rule[0]
 
@@ -434,4 +467,4 @@ def main(ctx, metadata):
   if code == 'LAN' or code == 'CN':
     return 'DIRECT'
 
-  return _Policies
+  return _POLICIES
