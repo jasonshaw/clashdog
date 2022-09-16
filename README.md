@@ -6,7 +6,7 @@ UDP related settings are not supported, all UDP connections are handled by defau
 
 ### What is this?
 
-When the subscription is given a full configuration file, rule-providers will be useless, even if the `rules` are changed to `payload`, `classical` can not replace rules. Without modifying the premise of `config.yaml`, you can only use script, subject to starlark limited functionality, this updater was born.
+When the subscription is given a full configuration file, rule-providers will be useless, even if the `rules` are changed to `payload`, `classical` can not replace rules. Without modifying the premise of `config.yaml`, you can only use script mode, subject to starlark limited functionality, this updater will help you build scripts quickly.
 
 ## Getting Started
 
@@ -21,7 +21,7 @@ mode: Script
 
 # https://github.com/Dreamacro/clash/releases/tag/premium
 script:
-    path: ./script.rules.py
+    path: script.0.py
 ```
 
 3\. Configure [clash systemd](https://github.com/Dreamacro/clash/wiki/clash-on-a-daemon#systemd)
