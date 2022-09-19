@@ -38,7 +38,7 @@ script:
     path: script.0.py
 ```
 
-3\. Configure [clash systemd](https://github.com/Dreamacro/clash/wiki/clash-on-a-daemon#systemd)
+3\. Configure [clash systemd](https://github.com/Dreamacro/clash/wiki/Running-Clash-as-a-service#systemd)
 
 ```ini
 [Unit]
@@ -58,11 +58,11 @@ WantedBy=multi-user.target
 
 4\. Install python3, minimum supported 3.6.8
 
-5\. Create the systemd configuration file at `/etc/systemd/system/updater.service`
+5\. Create the systemd configuration file at `/etc/systemd/system/clashup.service`
 
 ```ini
 [Unit]
-Description=Clash hosting updater daemon, A rule-based script builder in Python.
+Description=Clash subscription updater daemon.
 Requires=clash.service
 
 [Service]
@@ -84,10 +84,10 @@ Try `python3 updater.py -h` for more information.
 
 Launch updater on system startup with:
 
-    $ systemctl enable updater
+    $ systemctl enable clashup
 
 Launch updater immediately with:
 
-    $ systemctl start updater
+    $ systemctl start clashup
 
 You can change the service name to your needs.
