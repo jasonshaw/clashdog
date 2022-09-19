@@ -58,7 +58,7 @@ WantedBy=multi-user.target
 
 4\. Install python3, minimum supported 3.6.8
 
-5\. Create the systemd configuration file at `/etc/systemd/system/clashop.service`
+5\. Create the systemd configuration file at `/etc/systemd/system/clashdog.service`
 
 ```ini
 [Unit]
