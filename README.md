@@ -20,8 +20,6 @@
 
 Clash订阅地址应遵循[URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html)中设定的响应头，以便让`updater.py`更好的支持多线程。
 
-为了融合更多的规则，
-
 ## Getting Started
 
 1\. Download `script.py` and `updater.py` to `/etc/clash`
@@ -79,7 +77,6 @@ WantedBy=multi-user.target
 
 `updater.py` takes two parameters, in order, `default_policies` and `url`.
 The updater checks for the existence of rule-policies in config.yaml and uses default_policies when they do not exist.
-The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
 Try `python3 updater.py -h` for more information.
 
 After that you're supposed to reload systemd:
