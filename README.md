@@ -69,9 +69,9 @@ Requires=clash.service
 Type=simple
 Restart=always
 ExecStart=/usr/bin/python3 -u /etc/clash/updater.py default_policy \
-          -i index=append,filter=off,url= \
+          -i index=append,filter=all,url= \
           -i index=extend,filter=off,url= \
-          -i index=0,filter=off,url=file:/path
+          -i index=0,filter=geoip-match,url=file:/path
 WorkingDirectory=/etc/clash
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=process
