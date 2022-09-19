@@ -20,12 +20,12 @@ def save_as_yaml(resp):
   with open('./{0}.yaml'.format(filename), 'w', encoding = resp.encoding, newline = '\n') as stream:
     stream.write(resp.text)
 
-# ['Type', 'Matcher', 'Policies', 'original_rule_string']
+# ['Type', 'Matcher', 'Policy', 'original_rule_string']
 #
-# ['Type', [{IP, Mask}, 'Matcher'], 'Policies', 'Option', 'original_rule_string']
-# ['Type', [{IP, Mask}, 'Matcher'], 'Policies', 'original_rule_string']
+# ['Type', {IP, Mask}, {'Policy', }, 'Option', 'original_rule_string']
+# ['Type', {IP, Mask}, 'Policy', 'original_rule_string']
 #
-# ['MATCH', 'Policies', 'original_rule_string'] 
+# ['MATCH', 'Policy', 'original_rule_string']
 def parse_rule(rules, Policies, _Policies):
   for i, e in enumerate(rules):
     rule = e.split(',')
@@ -125,32 +125,37 @@ def run(argv):
 
   parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=\
 '''
-Clash hosting updater, A rule-based script builder in Python.
+Clash subscription updater, supports the separation of rules and configuration files.
 
-`--extend-front`: Syntax: [filter={all,geoip-match,match,off},]url=scheme:[//authority]/path[?query]
-                  Consists of multiple key-value pairs, separated by commas and each consisting of a `<key>=<value>` tuple.
-                  The order of the keys is not significant.
-                  Merge sequentially before the rules provided by the positional arguments `url`.
+`--insert`: Syntax: [index={append,extend},filter={all,geoip-match,match,off},]url=scheme:[//authority]/path[?query]
+            Consists of multiple key-value pairs, separated by commas and each consisting of a `<key>=<value>` tuple.
+            The order of the keys is not significant.
+            Merge sequentially in order of optional parameter `index`.
 
-  * The `filter` of the rules, optional, default is `geoip-match`, the following values are:
-    all          |  Exclude all rules
-    geoip-match  |  Exclude `GEOIP` and `MATCH`
+  * The `index` where the `rules` needs to be inserted, numbers are not supported, in `--insert` order.
+    Default values is `append`, only the followings are supported:
+    append       |  Add backwards
+    extend       |  Add forward
+  * The `filter` of the rules, optional, use ; split multi-select, default is `geoip;match;same`, the following values are:
+    off          |  No filter used, conflict with others.
+    all          |  Exclude all rules, conflict with others.
+    geoip        |  Exclude `GEOIP`
     match        |  Exclude `MATCH`
-    off          |  No filter used
-  * The `url` option is the same as the positional arguments `url`, and you can also use the FILE scheme.
+    same         |  Exclude identical rules
+  * The `url` option is the clash subscription address, and you can also use the FILE scheme.
 ''')
-  parser.add_argument('default_policies', help='''The updater checks for the existence of rule-policies in
-                                                  config.yaml and uses default-policies when they do not exist.''')
-  parser.add_argument('url', help='The clash hosting address.')
-  parser.add_argument('-e', '--extend-front', action='append', help='Merge rules forward.')
+  parser.add_argument('default_policy', help='''The clashdog checks for the existence of rule-policies in
+                                                config.yaml and uses default_policy when they do not exist.''')
+  parser.add_argument('-s', '--insert', action='append', help='Merge rules by order.')
   args = parser.parse_args()
 
-  if args.extend_front:
-    parser = argparse.ArgumentParser(prog=f'{path.basename(argv[0])} --extend-front', add_help=False)
-    parser.add_argument('--filter', default='geoip-match', choices=['all', 'geoip-match', 'match', 'off'])
+  if args.insert:
+    parser = argparse.ArgumentParser(prog=f'{path.basename(argv[0])} --insert', add_help=False)
+    parser.add_argument('-i', '--index', default='append', choices=['append', 'extend'])
+    parser.add_argument('-f', '--filter', default='geoip&match', choices=['all', 'geoip-match', 'match', 'off'])
     parser.add_argument('--url', required=True)
 
-    e = args.extend_front
+    e = args.insert
     for i, v in enumerate(e):
       logging.info(f'--extend-front {v}')
       v = v.split(',')
@@ -166,7 +171,7 @@ Clash hosting updater, A rule-based script builder in Python.
     resp = filespt_get(args.url)
 
     save_as_yaml(resp)
-    save_as_skpy(resp, args.default_policies, args.extend_front)
+    save_as_skpy(resp, args.default_policy, args.extend_front)
 
     h = int(resp.headers['profile-update-interval'])
     sleep(h * 3600)

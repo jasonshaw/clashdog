@@ -56,22 +56,27 @@ ExecReload=/bin/curl -X 'PUT' 'http://127.0.0.1:9090/configs?force=true'  \
 WantedBy=multi-user.target
 ```
 
-4\. Install python3, minimum supported 3.6.8
+4\. Install python3 and libraries, minimum supported 3.6.8
+
+```bash
+yum -y install python3 python3-pip
+pip3 install pyyaml requests requests-file urllib3
+```
 
 5\. Create the systemd configuration file at `/etc/systemd/system/clashdog.service`
 
 ```ini
 [Unit]
-Description=clashdog daemon.
+Description=Clash subscription updater daemon, supports the separation of rules and configuration files.
 Requires=clash.service
 
 [Service]
 Type=simple
 Restart=always
 ExecStart=/usr/bin/python3 -u /etc/clash/clashdog.py default_policy \
-          -i index=append,filter=all,url= \
-          -i index=extend,filter=off,url= \
-          -i index=0,filter=geoip-match,url=file:/path
+          -s index=append,filter=all,url= \
+          -s index=extend,filter=off,url= \
+          -s index=0,filter=geoip-match,url=file:/path
 WorkingDirectory=/etc/clash
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=process
