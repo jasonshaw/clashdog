@@ -80,8 +80,7 @@ KillMode=process
 WantedBy=multi-user.target
 ```
 
-`updater.py` takes two parameters, in order, `default_policy` and `url`.
-The updater checks for the existence of rule-policies in config.yaml and uses default_policies when they do not exist.
+The updater checks for the existence of rule-policies in config.yaml and uses default_policy when they do not exist.
 Try `python3 updater.py -h` for more information.
 
 After that you're supposed to reload systemd:
