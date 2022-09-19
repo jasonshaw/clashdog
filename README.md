@@ -29,7 +29,7 @@ Clash订阅地址应遵循[URL Scheme](https://docs.cfw.lbyczf.com/contents/urls
 2\. Modify `config.yaml`
 
 ```yaml
-# The updater will reload the configuration using the RESTful API
+# The clashdog will reload the configuration using the RESTful API
 external-controller: :9090
 mode: Script
 
@@ -80,18 +80,18 @@ KillMode=process
 WantedBy=multi-user.target
 ```
 
-The updater checks for the existence of rule-policies in config.yaml and uses default_policy when they do not exist.
+The clashdog checks for the existence of rule-policies in config.yaml and uses default_policy when they do not exist.
 Try `python3 clashdog.py -h` for more information.
 
 After that you're supposed to reload systemd:
 
     $ systemctl daemon-reload
 
-Launch updater on system startup with:
+Launch clashdogd on system startup with:
 
     $ systemctl enable clashdog
 
-Launch updater immediately with:
+Launch clashdogd immediately with:
 
     $ systemctl start clashdog
 
