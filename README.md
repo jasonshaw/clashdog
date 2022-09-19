@@ -68,7 +68,10 @@ Requires=clash.service
 [Service]
 Type=simple
 Restart=always
-ExecStart=/usr/bin/python3 -u /etc/clash/updater.py default_policies url
+ExecStart=/usr/bin/python3 -u /etc/clash/updater.py default_policy \
+          -i index=append,filter=off,url= \
+          -i index=extend,filter=off,url= \
+          -i index=0,filter=off,url=file:/path
 WorkingDirectory=/etc/clash
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=process
@@ -77,7 +80,7 @@ KillMode=process
 WantedBy=multi-user.target
 ```
 
-`updater.py` takes two parameters, in order, `default_policies` and `url`.
+`updater.py` takes two parameters, in order, `default_policy` and `url`.
 The updater checks for the existence of rule-policies in config.yaml and uses default_policies when they do not exist.
 Try `python3 updater.py -h` for more information.
 
