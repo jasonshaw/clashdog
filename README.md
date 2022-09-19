@@ -82,6 +82,10 @@ The updater checks for the existence of rule-policies in config.yaml and uses de
 The clash hosting address should follow the [URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html).
 Try `python3 updater.py -h` for more information.
 
+After that you're supposed to reload systemd:
+
+    $ systemctl daemon-reload
+
 Launch updater on system startup with:
 
     $ systemctl enable clashup
