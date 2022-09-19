@@ -12,13 +12,13 @@
 > 1. `match` type
 > 2. Policies after the matcher
 
-官方文档中明确指出`payload`并非完整的`rules`，在不拆分规则的情况下，无法将其分离出配置文件，这种方式对于订阅用户来说反而增加了耦合性，毕竟还要修改`config.yaml`，更新起来也极不方便。虽然订阅中的规则基本不会发生改变，但并不能保证供应商不会去更新。
+官方文档中明确指出`payload`并非完整的`rules`，在不拆分规则的情况下，无法将其分离出配置文件，这种方式对于订阅用户来说反而增加了耦合性，毕竟还要修改`config.yaml`，更新起来也极不方便。虽然订阅中的规则基本不会发生变动，但并不能保证供应商不会去更新。
 
 大部分市面上的Clash订阅都包含了完整的信息，但每个用户基本上都有一套自己的配置，多数情况下只会[引用](https://lancellc.gitbook.io/clash/clash-config-file/proxy-provider)订阅里的节点再配合自己的规则使用，更有甚者表示这些规则我都要。
 
 此项目就是用来实现这些功能的，与其它同类项目不一样的地方在于，这里采用`script`模式，脚本由`updater.py`基于`script.py`生成，尽量保证不去修改`config.yaml`。
 
-由于`script`模式所以提供的接口并不多，脚本不得不重新实现`match`逻辑，为了确保一致性，代码都是从go迁移过来的。
+由于`script`模式所提供的接口并不多，脚本不得不重新实现`match`逻辑，为了确保一致性，代码都是从go迁移过来的。
 
 需要注意的是，脚本语言并非py而是[starlark](https://github.com/bazelbuild/starlark)，starlark是py的子集，py对下兼容，`updater.py`中引用了`script.py`。
 
