@@ -6,13 +6,17 @@
 
 或许 [Rule Provider](https://lancellc.gitbook.io/clash/clash-config-file/rule-provider) 就能满足当前需求。
 
-### 下面引用摘自 Rule Provider 中 [behavior](https://lancellc.gitbook.io/clash/clash-config-file/rule-provider#behavior) 部分
+### 引用摘自 Rule Provider 中 [behavior](https://lancellc.gitbook.io/clash/clash-config-file/rule-provider#behavior) 部分
 
 > `classical` type does't support these following options:
 > 1. `match` type
 > 2. Policies after the matcher
 
-官方文档中明确指出`payload`并非完整的`rules`，在不拆分规则的情况下，无法将其分离出配置文件，这种方式对于订阅用户来说反而增加了耦合性，毕竟还要修改`config.yaml`，更新起来也极不方便。虽然订阅中的规则基本不会变动，但并不能保证供应商不会更新。
+官方文档中明确指出`payload`并非完整的`rules`，在不拆分规则的情况下，无法将其分离出配置文件，这种方式对于订阅用户来说反而增加了耦合性，毕竟还要修改`config.yaml`，更新起来也极不方便。虽然订阅中的规则基本不会发生变动，但并不能保证供应商不会去更新。
+
+大部分市面上的Clash订阅都包含了完整的信息，但每个用户基本上都有一套自己的配置，多数情况下只会[引用](https://lancellc.gitbook.io/clash/clash-config-file/proxy-provider)订阅里的节点再配合自己的规则使用，更有甚者表示这些规则我都要。
+
+此脚本就是用来实现这些功能的，与其它同类项目不一样的地方在于，这里采用`script`模式，尽量保证不去修改`config.yaml`。
 
 ## Getting Started
 
