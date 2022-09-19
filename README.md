@@ -1,4 +1,4 @@
-# clash-hosting-updater
+# clash-subscription-updater
 
 Before start, make sure you have successfully run clash with the help of the [documentation](https://github.com/Dreamacro/clash/wiki).
 
