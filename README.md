@@ -38,7 +38,7 @@ script:
     path: script.0.py
 ```
 
-3\. Configure [clash systemd](https://github.com/Dreamacro/clash/wiki/Running-Clash-as-a-service#systemd)
+3\. Config [clash systemd](https://github.com/Dreamacro/clash/wiki/Running-Clash-as-a-service#systemd)
 
 ```ini
 [Unit]
