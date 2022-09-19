@@ -74,9 +74,8 @@ Requires=clash.service
 Type=simple
 Restart=always
 ExecStart=/usr/bin/python3 -u /etc/clash/clashdog.py default_policy \
-          -s index=append,filter=all,url= \
-          -s index=extend,filter=off,url= \
-          -s index=0,filter=geoip-match,url=file:/path
+          -s url='scheme:[//authority]/path[?query]' \
+          -s index=extend,filter=off,url=file:///path/to/file
 WorkingDirectory=/etc/clash
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=process

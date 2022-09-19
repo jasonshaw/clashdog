@@ -136,7 +136,7 @@ Clash subscription updater, supports the separation of rules and configuration f
     Default values is `append`, only the followings are supported:
     append       |  Add backwards
     extend       |  Add forward
-  * The `filter` of the rules, optional, use ; split multi-select, default is `geoip;match;same`, the following values are:
+  * The `filter` of the rules, optional, use `;` split multi-select, default is `match`, the following values are:
     off          |  No filter used, conflict with others.
     all          |  Exclude all rules, conflict with others.
     geoip        |  Exclude `GEOIP`
@@ -151,8 +151,8 @@ Clash subscription updater, supports the separation of rules and configuration f
 
   if args.insert:
     parser = argparse.ArgumentParser(prog=f'{path.basename(argv[0])} --insert', add_help=False)
-    parser.add_argument('-i', '--index', default='append', choices=['append', 'extend'])
-    parser.add_argument('-f', '--filter', default='geoip&match', choices=['all', 'geoip-match', 'match', 'off'])
+    parser.add_argument('--index', default='append', choices=['append', 'extend'])
+    parser.add_argument('--filter', default='match', choices=['all', 'geoip-match', 'match', 'off'])
     parser.add_argument('--url', required=True)
 
     e = args.insert
