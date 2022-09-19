@@ -16,7 +16,7 @@
 
 大部分市面上的Clash订阅都包含了完整的信息，但每个用户基本上都有一套自己的配置，多数情况下只会[引用](https://lancellc.gitbook.io/clash/clash-config-file/proxy-provider)订阅里的节点再配合自己的规则使用，更有甚者表示这些规则我都要。
 
-此脚本就是用来实现这些功能的，与其它同类项目不一样的地方在于，这里采用`script`模式，尽量保证不去修改`config.yaml`。
+此项目就是用来实现这些功能的，与其它同类项目不一样的地方在于，这里采用`script`模式，以保证不去修改`config.yaml`。
 
 ## Getting Started
 
