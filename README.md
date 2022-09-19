@@ -58,7 +58,7 @@ WantedBy=multi-user.target
 
 4\. Install python3, minimum supported 3.6.8
 
-5\. Create the systemd configuration file at `/etc/systemd/system/clashup.service`
+5\. Create the systemd configuration file at `/etc/systemd/system/clashop.service`
 
 ```ini
 [Unit]
@@ -89,10 +89,10 @@ After that you're supposed to reload systemd:
 
 Launch updater on system startup with:
 
-    $ systemctl enable clashup
+    $ systemctl enable clashop
 
 Launch updater immediately with:
 
-    $ systemctl start clashup
+    $ systemctl start clashop
 
 You can change the service name to your needs.
