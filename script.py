@@ -33,7 +33,7 @@ def Base(path):
 #
 # see: https://github.com/golang/go/blob/master/src/strings/strings.go
 def EqualFold(s, t):
-  # TODO? Maybe this one is faster
+  # TODO? Maybe it will work.
   return s.lower() == t.lower()
 
 '''
@@ -362,7 +362,7 @@ def ParseCIDR(s):
 '''
 filter
 '''
-def rule_match(metadata, rule):
+def rule_Match(metadata, rule):
   if rule[0] == 'DOMAIN-SUFFIX':
     domain = metadata['host']
     return domain.endswith('.'+rule[1]) or rule[1] == domain
@@ -372,16 +372,16 @@ def rule_match(metadata, rule):
     return rule[1] == metadata['host']
 
   # IP-CIDR6 is handled the same way as IP-CIDR
-  # rule[1] = [{IP, Mask}, 'Matcher']
+  # rule[1] = {IP, Mask}
   #
   # see: https://github.com/Dreamacro/clash/blob/master/rule/ipcidr.go
   if 'IP-CIDR' in rule[0]:
     ip = metadata['src_ipp'] if rule[0] == 'SRC-IP-CIDR' else metadata['dst_ipp']
-    return ip != nil and Contains(ip, rule[1][0])
+    return ip != nil and Contains(ip, rule[1])
 
   if rule[0] == 'GEOIP':
     ip = metadata['dst_ipp']
-    if ip == nil
+    if ip == nil:
       return False
 
     if EqualFold(rule[1], 'LAN'):
@@ -394,77 +394,99 @@ def rule_match(metadata, rule):
     return metadata['dst_port'] == rule[1]
 
   if rule[0] == 'PROCESS-NAME':
-    return EqualFold(metadata['process_name'], rule[1])
+    return EqualFold(metadata['ProcessName'], rule[1])
   if rule[0] == 'PROCESS-PATH':
-    return EqualFold(metadata['process_path'], rule[1])
+    return EqualFold(metadata['ProcessPath'], rule[1])
 
-  return False
+  # Maybe always true, otherwise it's an illegal rule.
+  return rule[0] == 'MATCH'
 
-def should_resolve_ip(metadata, rule):
-  return 'IP' in rule[0] and not(len(rule) > 3 and rule[3] == 'no-resolve') \
+# return: Proxy{ProxyAdapter{Name: 'Policy', SupportUDP: bool}, Alive: bool}
+def rule_Adapter(pp, rule):
+  policy = rule[1] if rule[0] == 'MATCH' else rule[2]
+  return {{'Name': policy, 'SupportUDP': True}, 'Alive': pp[policy]}
+
+def setMetadata(ctx, metadata, k, v, *args):
+  if v == ctx:
+    if False:
+      return
+    elif k == 'ProcessPath' or k == 'ProcessName':
+      k = 'ProcessPath'
+      v = ctx.resolve_process_name
+    elif k == 'dst_ip':
+      v = ctx.resolve_ip(metadata['host'])
+
+  if type(v) == 'function':
+    v = v(args if len(args) > 0 else metadata)
+
+  if k == v:
+    v = metadata[k]
+  else
+    metadata[k] = v
+
+  if False:
+    return
+  elif k == 'ProcessPath':
+    metadata['ProcessName'] = Base(v)
+  elif k == 'src_ip':
+    metadata['src_ipp'] = ParseIP(v)
+  elif k == 'dst_ip':
+    metadata['dst_ipp'] = ParseIP(v)
+    metadata['IsoCode'] = ctx.geoip(v)
+
+def shouldResolveIP(metadata, rule):
+  return 'IP' in rule[0] and not(len(rule) > 3 and 'no-resolve' in rule[3]) \
   and metadata['host'] != '' and metadata['dst_ip'] == ''
 
 # reimplement ctx.rule_providers.match(metadata) => boolean
-# return: ['Policies', 'original_rule_string']
+# return: 'Policy', 'original_rule_string'
 #
 # see: https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
 def match(ctx, metadata):
+  pp = {p.name: p.alive for p in ctx.proxy_providers['default']}
+  setMetadata(ctx, metadata, 'dst_ip', 'dst_ip')
+  setMetadata(ctx, metadata, 'src_ip', 'src_ip')
+
   resolved = False
-  parsed = False
   processFound = False
 
-  # rule[:-2] = ['Type', 'Matcher', 'Policies']
-  # rule[:-2] = ['Type', 'Matcher', 'Policies', 'Option']
-  # rule[:-2] = ['MATCH', 'Policies']
+  # rule[:-2] = ['Type', 'Matcher', 'Policy']
+  # rule[:-2] = ['Type', 'Matcher', 'Policy', 'Option']
+  #
+  # rule[:-2] = ['MATCH', 'Policy']
   #
   # rule[-1] = 'original_rule_string'
-  for rule in _RULES:
-    if not resolved and should_resolve_ip(metadata, rule):
-      metadata['dst_ip'] = ctx.resolve_ip(metadata['host'])
+  for rule in RULES:
+    if not resolved and shouldResolveIP(metadata, rule):
+      setMetadata(ctx, metadata, 'dst_ip', ctx)
       resolved = True
 
-    if not parsed and 'IP' in rule[0]:
-      ip = metadata['dst_ip']
-      metadata['IsoCode'] = ctx.geoip(ip)
-      metadata['dst_ipp'] = ParseIP(ip)
-      metadata['src_ipp'] = ParseIP(metadata['src_ip'])
-      parsed = True
-
-    if not found and 'PROCESS' in rule[0]:
+    if not processFound and 'PROCESS' in rule[0]:
       processFound = True
-      path = ctx.resolve_process_name(metadata)
-      metadata['process_path'] = path
-      metadata['process_name'] = Base(path)
+      setMetadata(ctx, metadata, 'ProcessPath', ctx)
 
-    if rule_match(metadata, rule):
-      return [rule[2], rule[-1]]
-    if rule[0] == 'MATCH':
-      return [rule[1], rule[-1]]
+    if rule_Match(metadata, rule):
+      adapter, ok = rule_Adapter(pp, rule)
+      if not ok:
+        continue
+      if metadata['network'] == 'udp' and not adapter['SupportUDP']:
+        continue
+      return adapter['Name'], rule[-1]
 
-  return nil
+  return 'DIRECT', nil
 
 # see: https://github.com/Dreamacro/clash/wiki/premium-core-features
 # see: https://lancellc.gitbook.io/clash/clash-config-file/script
 # see: https://github.com/bazelbuild/starlark/blob/master/spec.md
 def main(ctx, metadata):
-  rule = match(ctx, metadata)
+  proxy, rule = match(ctx, metadata)
   if rule != nil:
-    out = [
+    msg = [
       '[{0}]'.format(metadata['network'].upper()),
       'type=' + metadata['type'],
       'host=' + metadata['host'],
       'src={0}:{1}'.format(metadata['src_ip'], metadata['src_port']),
       'dst={0}:{1}'.format(metadata['dst_ip'], metadata['dst_port'])
     ]
-    ctx.log('{0} | {1}'.format(' '.join(out), rule[1]))
-    return rule[0]
-
-  ip = metadata['dst_ip']
-  if ip == '':
-    ip = ctx.resolve_ip(metadata['host'])
-
-  code = ctx.geoip(ip)
-  if code == 'LAN' or code == 'CN':
-    return 'DIRECT'
-
-  return _POLICIES
+    ctx.log('{0} | {1}'.format(' '.join(msg), rule))
+  return proxy
