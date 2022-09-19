@@ -1,4 +1,4 @@
-# clash-subscription-updater
+# clashdog
 
 在开始前，请确保在[官方文档](https://github.com/Dreamacro/clash/wiki)的帮助下成功运行了clash。
 
@@ -68,7 +68,7 @@ Requires=clash.service
 [Service]
 Type=simple
 Restart=always
-ExecStart=/usr/bin/python3 -u /etc/clash/updater.py default_policy \
+ExecStart=/usr/bin/python3 -u /etc/clash/clashdog.py default_policy \
           -i index=append,filter=all,url= \
           -i index=extend,filter=off,url= \
           -i index=0,filter=geoip-match,url=file:/path
@@ -89,10 +89,10 @@ After that you're supposed to reload systemd:
 
 Launch updater on system startup with:
 
-    $ systemctl enable clashop
+    $ systemctl enable clashdog
 
 Launch updater immediately with:
 
-    $ systemctl start clashop
+    $ systemctl start clashdog
 
 You can change the service name to your needs.
