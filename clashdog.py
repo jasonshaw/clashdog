@@ -1,18 +1,23 @@
-import yaml
 import sys
 import re
-import requests
 import traceback
 import logging
 import argparse
-from requests import get, put
-from shutil import copyfileobj
+import threading
+
+import yaml
+import requests
+
 from script import ParseCIDR
+from shutil import copyfileobj
 from os import path
-from time import sleep
-from requests_file import FileAdapter
 from urllib.parse import urlparse
+from time import sleep
+from threading import Timer
+
+from requests import get, put
 from requests.adapters import HTTPAdapter
+from requests_file import FileAdapter
 from urllib3.util.retry import Retry
 
 def save_as_yaml(resp):
@@ -120,19 +125,17 @@ def save_as_skpy(resp, _Policies, e):
   # 重新加载配置文件
   put('http://127.0.0.1:9090/configs?force=true', json = {'path': path.abspath('./config.yaml')})
 
-def run(argv):
-  logging.basicConfig(level = logging.INFO)
-
+def parse():
   parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=\
 '''
 Clash subscription updater, supports the separation of rules and configuration files.
 
-`--insert`: Syntax: [index={append,extend},filter={all,geoip-match,match,off},]url=scheme:[//authority]/path[?query]
+`--insert`: Syntax: [position={append,extend},filter={all,geoip-match,match,off},]url=scheme:[//authority]/path[?query]
             Consists of multiple key-value pairs, separated by commas and each consisting of a `<key>=<value>` tuple.
             The order of the keys is not significant.
             Merge sequentially in order of optional parameter `index`.
 
-  * The `index` where the `rules` needs to be inserted, numbers are not supported, in `--insert` order.
+  * The `index` where the `rules` needs to be inserted, numbers are not supported, based on the sort order of `--insert`.
     Default values is `append`, only the followings are supported:
     append       |  Add backwards
     extend       |  Add forward
@@ -147,26 +150,33 @@ Clash subscription updater, supports the separation of rules and configuration f
   parser.add_argument('default_policy', help='''The clashdog checks for the existence of rule-policies in
                                                 config.yaml and uses default_policy when they do not exist.''')
   parser.add_argument('-s', '--insert', action='append', help='Merge rules by order.')
+
   args = parser.parse_args()
 
   if args.insert:
-    parser = argparse.ArgumentParser(prog=f'{path.basename(argv[0])} --insert', add_help=False)
+    parser = argparse.ArgumentParser(prog=f'{path.basename(sys.argv[0])} --insert', add_help=False)
     parser.add_argument('--index', default='append', choices=['append', 'extend'])
     parser.add_argument('--filter', default='match', choices=['all', 'geoip-match', 'match', 'off'])
     parser.add_argument('--url', required=True)
 
-    e = args.insert
-    for i, v in enumerate(e):
-      logging.info(f'--extend-front {v}')
+    s = args.insert
+    for i, v in enumerate(s):
+      logging.debug(f'--insert {v}')
       v = v.split(',')
       for j, s in enumerate(v):
         v[j] = f'--{s}'
-      e[i] = parser.parse_args(v)
+      s[i] = parser.parse_args(v)
 
-  logging.info(args)
+  logging.debug(args)
+  return args
 
-  # 视位置参数中的url为主要，以避免使用多线程。
-  # 如此一来 --extend-front 中的url可以不遵循规范，甚至里面的配置也不必是完整的，只包含rules就行。
+def main():
+  logging.basicConfig(level = logging.INFO)
+
+  args = parse()
+  for s in args.insert:
+
+
   while True:
     resp = filespt_get(args.url)
 
@@ -177,4 +187,4 @@ Clash subscription updater, supports the separation of rules and configuration f
     sleep(h * 3600)
 
 if __name__ == '__main__':
-  run(sys.argv)
+  main()
