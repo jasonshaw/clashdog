@@ -1,7 +1,9 @@
-Separator = "/"
-
 byte = lambda x=0: int(x) & 0xFF
 uint = lambda x=0: int(x) & 0xFFFFFFFF
+
+nil = None
+
+Separator = "/"
 
 # Base returns the last element of path.
 # Trailing path separators are removed before extracting the last element.
@@ -100,8 +102,6 @@ returns 16-byte addresses.
 
 see: https://github.com/golang/go/blob/master/src/net/ip.go
 """
-nil = None
-
 # IP address lengths (bytes).
 IPv4len = 4
 IPv6len = 16
@@ -389,7 +389,8 @@ def ParseCIDR(s):
 """
 filter
 """
-
+RULES = _RULES
+UDP = _UDP
 
 def rule_Match(metadata, rule):
     if rule[0] == "DOMAIN-SUFFIX":
