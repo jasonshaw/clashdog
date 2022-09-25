@@ -387,69 +387,104 @@ def ParseCIDR(s):
 
 
 """
-filter
+规则匹配区
+
+// An IP is a single IP address, a slice of bytes.
+// Functions in this package accept either 4-byte (IPv4)
+// or 16-byte (IPv6) slices as input.
+//
+// Note that in this documentation, referring to an
+// IP address as an IPv4 address or an IPv6 address
+// is a semantic property of the address, not just the
+// length of the byte slice: a 16-byte slice can still
+// be an IPv4 address.
+type IP []byte
+
+// An IPMask is a bitmask that can be used to manipulate
+// IP addresses for IP addressing and routing.
+//
+// See type IPNet and func ParseCIDR for details.
+type IPMask []byte
+
+// An IPNet represents an IP network.
+type IPNet struct {
+	IP   IP     // network number
+	Mask IPMask // network mask
+}
+
+因为 starlark 不支持自定义类型，所以需要收录上面这些定义，以便后续理解。
 """
+# rule[1:] = ["Type", "Matcher", "Policy", "Option"]
+# rule[1:] = ["MATCH", "Policy", "Option"]
+#
+# rule[0] = "original_rule_string"
+#
+# if "IP-CIDR" in rule[1]:
+#   rule[2] = IPNet
+#
+# Option 中新增 disable-udp 用 `;` 分割，与 Proxy Groups 中的含义一致，手动添加将忽略配置文件中的设置。
+# 由于配置文件是静态的，外加脚本缺少相关接口，因此无法考虑 UDP 传递问题。
+# 无论是 Proxies 的 udp 还是 Proxy Groups 的 disable-udp 它们的默认值都是 false。
+# rule[4] = "no-resolve;disable-udp"
 RULES = _RULES
-UDP = _UDP
 
-def rule_Match(metadata, rule):
-    if rule[0] == "DOMAIN-SUFFIX":
-        domain = metadata["host"]
-        return domain.endswith("." + rule[1]) or rule[1] == domain
-    if rule[0] == "DOMAIN-KEYWORD":
-        return rule[1] in metadata["host"]
-    if rule[0] == "DOMAIN":
-        return rule[1] == metadata["host"]
 
-    # IP-CIDR6 is handled the same way as IP-CIDR
-    # rule[1] = {IP, Mask}
-    #
-    # see: https://github.com/Dreamacro/clash/blob/master/rule/ipcidr.go
-    if "IP-CIDR" in rule[0]:
-        ip = metadata["src_ipp"] if rule[0] == "SRC-IP-CIDR" else metadata["dst_ipp"]
-        return ip != nil and Contains(ip, rule[1])
+def ruleMatch(metadata, rule):
+    if rule[1] == "DOMAIN-SUFFIX":
+        return metadata["host"].endswith("." + rule[2]) or rule[2] == metadata["host"]
+    if rule[1] == "DOMAIN-KEYWORD":
+        return rule[2] in metadata["host"]
+    if rule[1] == "DOMAIN":
+        return rule[2] == metadata["host"]
 
-    if rule[0] == "GEOIP":
+    if "IP-CIDR" in rule[1]:
+        ip = metadata["src_ipp"] if rule[1] == "SRC-IP-CIDR" else metadata["dst_ipp"]
+        return ip != nil and Contains(ip, rule[2])
+
+    if rule[1] == "GEOIP":
         ip = metadata["dst_ipp"]
         if ip == nil:
             return False
 
         if EqualFold(rule[1], "LAN"):
             return IsPrivate(ip)
-        return EqualFold(metadata["IsoCode"], rule[1])
+        return EqualFold(metadata["IsoCode"], rule[2])
 
-    if rule[0] == "SRT-PORT":
-        return metadata["src_port"] == rule[1]
-    if rule[0] == "DST-PORT":
-        return metadata["dst_port"] == rule[1]
+    if rule[1] == "SRT-PORT":
+        return metadata["src_port"] == rule[2]
+    if rule[1] == "DST-PORT":
+        return metadata["dst_port"] == rule[2]
 
-    if rule[0] == "PROCESS-NAME":
-        return EqualFold(metadata["ProcessName"], rule[1])
-    if rule[0] == "PROCESS-PATH":
-        return EqualFold(metadata["ProcessPath"], rule[1])
+    if rule[1] == "PROCESS-NAME":
+        return EqualFold(metadata["ProcessName"], rule[2])
+    if rule[1] == "PROCESS-PATH":
+        return EqualFold(metadata["ProcessPath"], rule[2])
 
-    # Maybe always true, otherwise it's an illegal rule.
-    return rule[0] == "MATCH"
-
-
-# return: Proxy{ProxyAdapter{Name: 'Policy', SupportUDP: bool}, Alive: bool}
-def rule_Adapter(pp, rule):
-    policy = rule[1] if rule[0] == "MATCH" else rule[2]
-    return {"Adapter": {"Name": policy, "SupportUDP": True}, "Alive": pp[policy]}
+    return rule[1] == "MATCH"
 
 
-def setMetadata(ctx, metadata, k, v, *args):
-    if v == ctx:
-        if False:
-            pass
-        elif k == "ProcessPath" or k == "ProcessName":
-            k = "ProcessPath"
-            v = ctx.resolve_process_name
-        elif k == "dst_ip":
-            v = ctx.resolve_ip(metadata["host"])
+# return: Proxy
+def ruleAdapter(pp, rule):
+    policy = rule[2] if rule[1] == "MATCH" else rule[3]
+    return {
+        "ProxyAdapter": {"Name": policy, "SupportUDP": "disable-udp" not in rule[4]},
+        "Alive": pp[policy],
+    }
+
+
+def setMetadata(ctx, metadata, k, v, *args, **kwargs):
+    args = list(args)
+    if not args:
+        pass
+    elif args[0] == nil:
+        args = args[1:]
+    elif not args[0]:
+        args[0] = metadata
+    else:
+        args[0] = metadata[args[0]]
 
     if type(v) == "function":
-        v = v(args if len(args) > 0 else metadata)
+        v = v(*args, **kwargs)
 
     if k == v:
         v = metadata[k]
@@ -469,15 +504,15 @@ def setMetadata(ctx, metadata, k, v, *args):
 
 def shouldResolveIP(metadata, rule):
     return (
-        "IP" in rule[0]
-        and not (len(rule) > 3 and "no-resolve" in rule[3])
+        "IP" in rule[1]
+        and "no-resolve" not in rule[3]
         and metadata["host"] != ""
-        and metadata["dst_ip"] == ""
+        and metadata["dst_ipp"] == nil
     )
 
 
 # reimplement ctx.rule_providers.match(metadata) => boolean
-# return: 'Policy', 'original_rule_string'
+# return: "Policy", "original_rule_string"
 #
 # see: https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
 def match(ctx, metadata):
@@ -488,28 +523,22 @@ def match(ctx, metadata):
     resolved = False
     processFound = False
 
-    # rule[:-2] = ['Type', 'Matcher', 'Policy']
-    # rule[:-2] = ['Type', 'Matcher', 'Policy', 'Option']
-    #
-    # rule[:-2] = ['MATCH', 'Policy']
-    #
-    # rule[-1] = 'original_rule_string'
     for rule in RULES:
         if not resolved and shouldResolveIP(metadata, rule):
-            setMetadata(ctx, metadata, "dst_ip", ctx)
+            setMetadata(ctx, metadata, "dst_ip", ctx.resolve_ip, "host")
             resolved = True
 
-        if not processFound and "PROCESS" in rule[0]:
+        if not processFound and "PROCESS" in rule[1]:
             processFound = True
-            setMetadata(ctx, metadata, "ProcessPath", ctx)
+            setMetadata(ctx, metadata, "ProcessPath", ctx.resolve_process_name, "")
 
-        if rule_Match(metadata, rule):
-            adapter, ok = rule_Adapter(pp, rule)
+        if ruleMatch(metadata, rule):
+            adapter, ok = ruleAdapter(pp, rule)
             if not ok:
                 continue
-            if metadata["network"] == "udp" and not adapter["SupportUDP"]:
+            if EqualFold(metadata["network"], "UDP") and not adapter["SupportUDP"]:
                 continue
-            return adapter["Name"], rule[-1]
+            return adapter["Name"], rule[0]
 
     return "DIRECT", nil
 
@@ -518,7 +547,7 @@ def match(ctx, metadata):
 # see: https://lancellc.gitbook.io/clash/clash-config-file/script
 # see: https://github.com/bazelbuild/starlark/blob/master/spec.md
 def main(ctx, metadata):
-    proxy, rule = match(ctx, metadata)
+    _, rule = match(ctx, metadata)
     if rule != nil:
         msg = [
             "[{0}]".format(metadata["network"].upper()),
@@ -528,4 +557,4 @@ def main(ctx, metadata):
             "dst={0}:{1}".format(metadata["dst_ip"], metadata["dst_port"]),
         ]
         ctx.log("{0} | {1}".format(" ".join(msg), rule))
-    return proxy
+    return _
