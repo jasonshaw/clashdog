@@ -128,28 +128,13 @@ def main():
 
 
 def get(url):
-    s = requests.Session()
-    s.mount("file://", FileAdapter())
+    adapter = HTTPAdapter(max_retries=Retry(connect=3, backoff_factor=10))
 
-    retries = Retry(connect=3, backoff_factor=10)
-    adapter = HTTPAdapter(max_retries=retries)
-    s.mount("http://", adapter)
-    s.mount("https://", adapter)
-
-    i = 0
-    while True:
-        try:
-            resp = s.get(url)
-        except requests.Timeout:
-            sleep(10 * i)
-            i += 1
-            logging.warning(traceback.format_exc())
-            logging.info("%sth retry", i)
-        else:
-            break
-
-    assert resp.ok
-    return resp
+    with requests.Session() as s:
+        s.mount("file://", FileAdapter())
+        s.mount("http://", adapter)
+        s.mount("https://", adapter)
+        return s.get(url)
 
 
 def argvparse():
@@ -228,7 +213,7 @@ Clash subscription updater, supports the separation of rules and configuration f
             e = parser.parse_args(e)
 
             if not f:
-                del e.filter[0]  # 移除多余的default
+                del e.filter[0]  # 移除default
             args.insert[i] = e
 
     logging.debug(args)
