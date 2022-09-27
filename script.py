@@ -426,7 +426,7 @@ type IPNet struct {
 # 由于配置文件是静态的，外加脚本缺少相关接口，因此无法考虑 UDP 传递问题。
 # 无论是 Proxies 的 udp 还是 Proxy Groups 的 disable-udp 它们的默认值都是 false。
 # rule[4] = "no-resolve;disable-udp"
-RULES = _RULES
+RULES = _RULES = []
 
 
 def ruleMatch(metadata, rule):
@@ -536,7 +536,7 @@ def match(ctx, metadata):
             adapter, ok = ruleAdapter(pp, rule)
             if not ok:
                 continue
-            if EqualFold(metadata["network"], "UDP") and not adapter["SupportUDP"]:
+            if EqualFold(metadata["network"], "udp") and not adapter["SupportUDP"]:
                 continue
             return adapter["Name"], rule[0]
 
@@ -549,12 +549,12 @@ def match(ctx, metadata):
 def main(ctx, metadata):
     _, rule = match(ctx, metadata)
     if rule != nil:
-        msg = [
+        out = [
             "[{0}]".format(metadata["network"].upper()),
             "type=" + metadata["type"],
             "host=" + metadata["host"],
             "src={0}:{1}".format(metadata["src_ip"], metadata["src_port"]),
             "dst={0}:{1}".format(metadata["dst_ip"], metadata["dst_port"]),
         ]
-        ctx.log("{0} | {1}".format(" ".join(msg), rule))
+        ctx.log("{0} | {1}".format(" ".join(out), rule))
     return _

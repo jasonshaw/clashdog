@@ -1,21 +1,20 @@
+import logging
+import argparse
 import sys
 import re
 import traceback
-import logging
-import argparse
 import threading
 
-import yaml
 import requests
+import yaml
 
 from script import ParseCIDR
 from shutil import copyfileobj
 from os import path
 from urllib.parse import urlparse
 from time import sleep
-from threading import Timer
 
-from requests import get, put
+from requests import put
 from requests.adapters import HTTPAdapter
 from requests_file import FileAdapter
 from urllib3.util.retry import Retry
@@ -55,31 +54,6 @@ def parse_rule(rules, Policies, _Policies):
 
         rule.append(e)
         rules[i] = rule
-
-
-def filespt_get(url):
-    s = requests.Session()
-    s.mount("file://", FileAdapter())
-
-    retries = Retry(connect=3, backoff_factor=10)
-    adapter = HTTPAdapter(max_retries=retries)
-    s.mount("http://", adapter)
-    s.mount("https://", adapter)
-
-    i = 0
-    while True:
-        try:
-            resp = s.get(url)
-        except requests.Timeout:
-            sleep(10 * i)
-            i += 1
-            logging.warning(traceback.format_exc())
-            logging.info("%sth retry", i)
-        else:
-            break
-
-    assert resp.ok
-    return resp
 
 
 def merge_rules(e, resp):
@@ -138,68 +112,10 @@ def save_as_skpy(resp, _Policies, e):
     )
 
 
-def parse():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="""
-Clash subscription updater, supports the separation of rules and configuration files.
-
-`--insert`: Syntax: [position={append,extend},filter={all,geoip-match,match,off},]url=scheme:[//authority]/path[?query]
-            Consists of multiple key-value pairs, separated by commas and each consisting of a `<key>=<value>` tuple.
-            The order of the keys is not significant.
-            The insertion position is determined by the subparameter `position`
-            and is merged in the order of appearance of this optional parameter.
-
-  * The `position` where the `rules` needs to be inserted, default values is `append`, only the followings are supported:
-    append       |  Add backwards
-    extend       |  Add forward
-  * The `filter` of the rules, optional, support multi-select with `;` split, default is `match`, the following values are:
-    off          |  No filter used, conflict with others.
-    all          |  Exclude all rules, conflict with others.
-    geoip        |  Exclude `GEOIP`.
-    match        |  Exclude `MATCH`.
-    same         |  Exclude identical rules.
-  * The `url` option is the clash subscription address, and you can also use the FILE scheme.
-""",
-    )
-    parser.add_argument(
-        "default_policy",
-        help="""The clashdog checks for the existence of rule-policies in `config.yaml`
-                and uses `default_policy` when they do not exist.""",
-    )
-    parser.add_argument("-i", "--insert", action="append", help="Merge rules by order.")
-
-    args = parser.parse_args()
-    if args.insert:
-        parser = argparse.ArgumentParser(
-            prog=f"{path.basename(sys.argv[0])} --insert", add_help=False
-        )
-        parser.add_argument(
-            "--position", default="append", choices=["append", "extend"]
-        )
-        parser.add_argument(
-            "--filter",
-            default="match",
-            choices=["all", "off", "geoip", "match", "same"],
-        )
-        parser.add_argument("--url", required=True)
-
-        s = args.insert
-        for i, v in enumerate(s):
-            logging.debug(f"--insert {v}")
-            v = v.split(",")
-            for j, s in enumerate(v):
-                v[j] = f"--{s}"
-            s[i] = parser.parse_args(v)
-
-    logging.debug(args)
-    return args
-
-
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
-    args = parse()
+    args = argvparse()
 
     while True:
         resp = filespt_get(args.url)
@@ -209,6 +125,114 @@ def main():
 
         h = int(resp.headers["profile-update-interval"])
         sleep(h * 3600)
+
+
+def get(url):
+    s = requests.Session()
+    s.mount("file://", FileAdapter())
+
+    retries = Retry(connect=3, backoff_factor=10)
+    adapter = HTTPAdapter(max_retries=retries)
+    s.mount("http://", adapter)
+    s.mount("https://", adapter)
+
+    i = 0
+    while True:
+        try:
+            resp = s.get(url)
+        except requests.Timeout:
+            sleep(10 * i)
+            i += 1
+            logging.warning(traceback.format_exc())
+            logging.info("%sth retry", i)
+        else:
+            break
+
+    assert resp.ok
+    return resp
+
+
+def argvparse():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="""
+Clash subscription updater, supports the separation of rules and configuration files.
+
+`--insert`: Syntax: [push={front,back},filter={off,all,geoip,match,same},]url=scheme:[//authority]/path[?query]
+            Consists of multiple key-value pairs, separated by commas and each consisting of a `<key>=<value>` tuple.
+            The order of the keys is not significant.
+            The insertion position is determined by the subparameter `push` and
+            is merged in the order of appearance of this optional parameter.
+
+  * The default value of `push` is `back`, only the following are supported:
+    front       |   Insert rules at beginning
+    back        |   Add rules at the end
+  * The `filter` of the rules, optional, support multi-select with `;` split, default is `off`, the following values are:
+    off         |   No filter used, conflict with others.
+    all         |   Exclude all rules, conflict with others.
+    geoip       |   Exclude `GEOIP`
+    match       |   Exclude `MATCH`
+    same        |   Exclude identical rules
+  * The `url` option is the clash subscription address, and you can also use the FILE scheme.
+""",
+    )
+    parser.add_argument(
+        "default_policy",
+        help="The clashdog checks for the existence of rule-policies in `config.yaml` and uses `default_policy` when they do not exist",
+    )
+    parser.add_argument(
+        "-i",
+        "--insert",
+        action="append",
+        required=True,
+        help="Merge rules in order",
+        metavar="<Syntax>",
+    )
+
+    args = parser.parse_args()
+    logging.debug(args)
+
+    # 处理子参数
+    if args.insert:
+        parser = argparse.ArgumentParser(
+            prog=f"{path.basename(sys.argv[0])} --insert", add_help=False
+        )
+        parser.add_argument("--push", default="back", choices=["front", "back"])
+        parser.add_argument(
+            "--filter",
+            action="append",
+            default=["off"],
+            choices=["off", "all", "geoip", "match", "same"],
+        )
+        parser.add_argument("--url", required=True)
+
+        for i, e in enumerate(args.insert):
+            logging.debug(f"--insert {e}")
+
+            f = lambda x: "filter" in x
+
+            e = e.split(",")
+            for j, s in enumerate(e):
+                if f and f(s):
+                    s = s.replace(";", " filter=").split(" ")
+                    s = [x for x in s if x != "filter="]
+                    if len(s) > 1 and ("filter=off" in s or "filter=all" in s):
+                        raise argparse.ArgumentError(
+                            None, f"{e[j]} has conflicting values"
+                        )
+                    e.extend(s[1:])
+                    s = s[0]
+                    f = False
+
+                e[j] = f"--{s}"
+            e = parser.parse_args(e)
+
+            if not f:
+                del e.filter[0]  # 移除多余的default
+            args.insert[i] = e
+
+    logging.debug(args)
+    return args
 
 
 if __name__ == "__main__":
