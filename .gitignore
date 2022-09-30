@@ -171,3 +171,7 @@ cython_debug/
 
 # Built Visual Studio Code Extensions
 *.vsix
+
+# 测试文件
+Hitun
+config.yaml

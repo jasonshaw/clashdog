@@ -505,7 +505,7 @@ def setMetadata(ctx, metadata, k, v, *args, **kwargs):
 def shouldResolveIP(metadata, rule):
     return (
         "IP" in rule[1]
-        and "no-resolve" not in rule[3]
+        and "no-resolve" not in rule[4]
         and metadata["host"] != ""
         and metadata["dst_ipp"] == nil
     )

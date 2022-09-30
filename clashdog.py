@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import argparse
 import sys
-import asyncio
+import os
 import re
 
 import requests
@@ -9,23 +10,12 @@ import yaml
 
 from script import ParseCIDR
 from shutil import copyfileobj
-from os import path
 from urllib.parse import urlparse
 
 from requests import put
 from requests.adapters import HTTPAdapter
 from requests_file import FileAdapter
 from urllib3.util.retry import Retry
-
-
-def save_as_yaml(resp):
-    filename = re.findall('filename="(.+)"', resp.headers["Content-Disposition"])[
-        0
-    ].lower()
-    with open(
-        "./{0}.yaml".format(filename), "w", encoding=resp.encoding, newline="\n"
-    ) as stream:
-        stream.write(resp.text)
 
 
 def parse_rule(rules, Policies, _Policies):
@@ -110,12 +100,36 @@ async def run(currentInsert, defaultPolicy):
             None, get, currentInsert.url
         )
 
-        delay = int(resp.headers["profile-update-interval"]) * 3600
-        await asyncio.sleep(delay)
+        filename = re.findall('filename="(.+)"', resp.headers["Content-Disposition"])[0]
+        interval = int(resp.headers["profile-update-interval"])
+
+        with open(
+            os.path.abspath(filename), "w", encoding=resp.encoding, newline="\n"
+        ) as stream:
+            stream.write(resp.text)
+            logging.info(f"Saved file to {stream.name}")
+
+        configPath = os.path.abspath("config.yaml")
+        if os.path.islink(configPath):
+            configPath = os.readlink(configPath)
+
+        with open(configPath) as stream:
+            config = yaml.load(stream, Loader=yaml.Loader)
+
+            # policy: disable-udp
+            policies = {"DIRECT": False, "REJECT": False}
+
+            for p in config.get("proxies", []):
+                policies[p["name"]] = not p["udp"] if "udp" in p else True
+            for p in config.get("proxy-groups", []):
+                policies[p["name"]] = p["disable-udp"] if "disable-udp" in p else False
+
+        logging.info(f"{filename} next update in {interval} hours")
+        await asyncio.sleep(interval * 3600)
 
 
 async def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     argv = argvparse()
     task = []
@@ -177,7 +191,7 @@ Clash subscription updater, supports the separation of rules and configuration f
     # 处理子参数
     if args.insert:
         parser = argparse.ArgumentParser(
-            prog=f"{path.basename(sys.argv[0])} --insert", add_help=False
+            prog=f"{os.path.basename(sys.argv[0])} --insert", add_help=False
         )
         parser.add_argument("--push", default="back", choices=["front", "back"])
         parser.add_argument(
