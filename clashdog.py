@@ -1,9 +1,8 @@
 import logging
 import argparse
 import sys
+import asyncio
 import re
-import traceback
-import threading
 
 import requests
 import yaml
@@ -12,7 +11,6 @@ from script import ParseCIDR
 from shutil import copyfileobj
 from os import path
 from urllib.parse import urlparse
-from time import sleep
 
 from requests import put
 from requests.adapters import HTTPAdapter
@@ -30,12 +28,6 @@ def save_as_yaml(resp):
         stream.write(resp.text)
 
 
-# ['Type', 'Matcher', 'Policy', 'original_rule_string']
-#
-# ['Type', {IP, Mask}, {'Policy', }, 'Option', 'original_rule_string']
-# ['Type', {IP, Mask}, 'Policy', 'original_rule_string']
-#
-# ['MATCH', 'Policy', 'original_rule_string']
 def parse_rule(rules, Policies, _Policies):
     for i, e in enumerate(rules):
         rule = e.split(",")
@@ -112,19 +104,24 @@ def save_as_skpy(resp, _Policies, e):
     )
 
 
-def main():
+async def run(currentInsert, defaultPolicy):
+    while True:
+        resp = await asyncio.get_event_loop().run_in_executor(
+            None, get, currentInsert.url
+        )
+
+        delay = int(resp.headers["profile-update-interval"]) * 3600
+        await asyncio.sleep(delay)
+
+
+async def main():
     logging.basicConfig(level=logging.DEBUG)
 
-    args = argvparse()
-
-    while True:
-        resp = filespt_get(args.url)
-
-        save_as_yaml(resp)
-        save_as_skpy(resp, args.default_policy, args.extend_front)
-
-        h = int(resp.headers["profile-update-interval"])
-        sleep(h * 3600)
+    argv = argvparse()
+    task = []
+    for i in argv.insert:
+        task.append(run(i, argv.default_policy))
+    await asyncio.gather(*task)
 
 
 def get(url):
@@ -221,4 +218,4 @@ Clash subscription updater, supports the separation of rules and configuration f
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
