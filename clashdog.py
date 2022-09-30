@@ -61,15 +61,6 @@ def merge_rules(e, resp):
 
 
 def save_as_skpy(resp, _Policies, e):
-    # 获取 Policies 的名称，必须每次重新读取，以应对文件变动
-    with open("./config.yaml") as stream:
-        config = yaml.load(stream, Loader=yaml.Loader)
-        Policies = config.get("proxy-groups", [])
-        Policies.extend(config.get("proxies", []))
-        for i in range(len(Policies)):
-            Policies[i] = Policies[i]["name"]
-        Policies.insert(0, "DIRECT")
-        Policies.insert(1, "REJECT")
 
     with open("./script.rules.py", "w", encoding="utf-8", newline="\n") as stream:
         # 解析规则
@@ -104,16 +95,12 @@ async def run(currentInsert, defaultPolicy):
         interval = int(resp.headers["profile-update-interval"])
 
         with open(
-            os.path.abspath(filename), "w", encoding=resp.encoding, newline="\n"
+            abspath(filename), "w", encoding=resp.encoding, newline="\n"
         ) as stream:
             stream.write(resp.text)
             logging.info(f"Saved file to {stream.name}")
 
-        configPath = os.path.abspath("config.yaml")
-        if os.path.islink(configPath):
-            configPath = os.readlink(configPath)
-
-        with open(configPath) as stream:
+        with open(abspath("config.yaml")) as stream:
             config = yaml.load(stream, Loader=yaml.Loader)
 
             # policy: disable-udp
@@ -123,6 +110,11 @@ async def run(currentInsert, defaultPolicy):
                 policies[p["name"]] = not p["udp"] if "udp" in p else True
             for p in config.get("proxy-groups", []):
                 policies[p["name"]] = p["disable-udp"] if "disable-udp" in p else False
+
+        with open(
+            abspath("script.0.py"), "w", encoding="utf-8", newline="\n"
+        ) as stream:
+            pass
 
         logging.info(f"{filename} next update in {interval} hours")
         await asyncio.sleep(interval * 3600)
@@ -136,6 +128,11 @@ async def main():
     for i in argv.insert:
         task.append(run(i, argv.default_policy))
     await asyncio.gather(*task)
+
+
+def abspath(path):
+    path = os.path.abspath(path)
+    return os.readlink(path) if os.path.islink(path) else path
 
 
 def get(url):
