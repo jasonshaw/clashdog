@@ -175,3 +175,4 @@ cython_debug/
 # 测试文件
 Hitun
 config.yaml
+script.0.py

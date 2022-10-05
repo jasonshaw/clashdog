@@ -105,9 +105,12 @@ async def run(currentInsert, defaultPolicy):
             config = yaml.load(stream, Loader=yaml.Loader)
 
             for p in config.get("proxies", []):
-                policies[p["name"]] = not p["udp"] if "udp" in p else True
+                p = DictObj(p)
+                policies[p.name] = not p.udp if "udp" in p else True
+
             for p in config.get("proxy-groups", []):
-                policies[p["name"]] = p["disable-udp"] if "disable-udp" in p else False
+                p = DictObj(p)
+                policies[p.name] = p.disable_udp if "disable-udp" in p else False
 
         with open(
             abspath("script.0.py"), "w", encoding="utf-8", newline="\n"
@@ -133,6 +136,21 @@ async def main():
     for i in argv.insert:
         aws.append(run(i, argv.default_policy))
     await asyncio.gather(*aws)
+
+
+class DictObj(dict):
+    def __new__(cls, d):
+        return super().__new__(cls) if isinstance(d, dict) else d
+
+    def __init__(self, d):
+        for k, v in d.items():
+            v = DictObj(v)
+            if "-" in k:
+                self[k.replace("-", "_")] = v
+            self[k] = v
+
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
 
 
 def abspath(path):
