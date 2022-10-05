@@ -1,3 +1,6 @@
+from script import ParseCIDR
+
+# 标准库
 import asyncio
 import logging
 import argparse
@@ -5,12 +8,12 @@ import sys
 import os
 import re
 
+from urllib.parse import urlparse
+from shutil import copyfileobj
+
+# 第三方库
 import requests
 import yaml
-
-from script import ParseCIDR
-from shutil import copyfileobj
-from urllib.parse import urlparse
 
 from requests import put
 from requests.adapters import HTTPAdapter
@@ -78,12 +81,6 @@ def save_as_skpy(resp, _Policies, e):
             stream.write('\n"""\n{0}\n"""\n'.format(fsrc.name))
             copyfileobj(fsrc, stream)
 
-    # 重新加载配置文件
-    put(
-        "http://127.0.0.1:9090/configs?force=true",
-        json={"path": path.abspath("./config.yaml")},
-    )
-
 
 async def run(currentInsert, defaultPolicy):
     while True:
@@ -94,17 +91,18 @@ async def run(currentInsert, defaultPolicy):
         filename = re.findall('filename="(.+)"', resp.headers["Content-Disposition"])[0]
         interval = int(resp.headers["profile-update-interval"])
 
+        policies = {"DIRECT": False, "REJECT": False}  # policy: disable-udp
+
+        # 保存文件
         with open(
             abspath(filename), "w", encoding=resp.encoding, newline="\n"
         ) as stream:
             stream.write(resp.text)
             logging.info(f"Saved file to {stream.name}")
 
+        # 读取配置
         with open(abspath("config.yaml")) as stream:
             config = yaml.load(stream, Loader=yaml.Loader)
-
-            # policy: disable-udp
-            policies = {"DIRECT": False, "REJECT": False}
 
             for p in config.get("proxies", []):
                 policies[p["name"]] = not p["udp"] if "udp" in p else True
@@ -116,6 +114,13 @@ async def run(currentInsert, defaultPolicy):
         ) as stream:
             pass
 
+        # 重载配置，本地速度快不需要异步
+        logging.info("Reload configuration")
+        put(
+            "http://127.0.0.1:9090/configs?force=true",
+            json={"path": abspath("config.yaml")},
+        )
+
         logging.info(f"{filename} next update in {interval} hours")
         await asyncio.sleep(interval * 3600)
 
@@ -124,10 +129,10 @@ async def main():
     logging.basicConfig(level=logging.INFO)
 
     argv = argvparse()
-    task = []
+    aws = []
     for i in argv.insert:
-        task.append(run(i, argv.default_policy))
-    await asyncio.gather(*task)
+        aws.append(run(i, argv.default_policy))
+    await asyncio.gather(*aws)
 
 
 def abspath(path):
