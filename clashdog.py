@@ -7,13 +7,16 @@ import argparse
 import sys
 import os
 import re
+import ast
 
+from pathlib import Path
 from urllib.parse import urlparse
 from shutil import copyfileobj
 
 # 第三方库
 import requests
 import yaml
+import astor
 
 from requests import put
 from requests.adapters import HTTPAdapter
@@ -82,7 +85,30 @@ def save_as_skpy(resp, _Policies, e):
             copyfileobj(fsrc, stream)
 
 
-async def run(currentInsert, defaultPolicy):
+class RewriteRules(ast.NodeTransformer):
+    def visit_Assign(self, node):
+        if not (
+            len(node.targets) == 2
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "RULES"
+        ):
+            return node
+        return ast.Assign(node.targets[:1], node.targets[1], node.type_comment)
+
+    def visit_Module(self, node):
+        node.body.insert(0, ast.Assign([ast.Name("_RULES")], ast.List([]), None))
+        return node
+
+
+def fileRotate(filename, max):
+    for i in range(max - 1 if max > 0 else 0, -1, -1):
+        p = Path(filename.replace("*", f"{i}"))
+        if p.exists() and p.is_file():
+            pass
+    return p
+
+
+async def run(currentInsert, argv):
     while True:
         resp = await asyncio.get_event_loop().run_in_executor(
             None, get, currentInsert.url
@@ -94,9 +120,7 @@ async def run(currentInsert, defaultPolicy):
         policies = {"DIRECT": False, "REJECT": False}  # policy: disable-udp
 
         # 保存文件
-        with open(
-            abspath(filename), "w", encoding=resp.encoding, newline="\n"
-        ) as stream:
+        with open(filename, "w", encoding=resp.encoding, newline="\n") as stream:
             stream.write(resp.text)
             logging.info(f"Saved file to {stream.name}")
 
@@ -112,16 +136,26 @@ async def run(currentInsert, defaultPolicy):
                 p = DictObj(p)
                 policies[p.name] = p.disable_udp if "disable-udp" in p else False
 
-        with open(
-            abspath("script.0.py"), "w", encoding="utf-8", newline="\n"
-        ) as stream:
-            pass
+        # 生成脚本
+        script = astor.parse_file("script.py")
+        script = ast.fix_missing_locations(RewriteRules().visit(script))
 
-        # 重载配置，本地速度快不需要异步
+        with open(
+            fileRotate(argv.filename, argv.file_max_rotate),
+            "w",
+            encoding="utf-8",
+            newline="\n",
+        ) as stream:
+            stream.write(astor.dump_tree(script))
+            # stream.write(astor.to_source(script))
+
+        # 重载配置
         logging.info("Reload configuration")
+        # 本地速度快不需要异步
+        # clash本身支持软链接
         put(
             "http://127.0.0.1:9090/configs?force=true",
-            json={"path": abspath("config.yaml")},
+            json={"path": "config.yaml"},
         )
 
         logging.info(f"{filename} next update in {interval} hours")
@@ -134,7 +168,7 @@ async def main():
     argv = argvparse()
     aws = []
     for i in argv.insert:
-        aws.append(run(i, argv.default_policy))
+        aws.append(run(i, argv))
     await asyncio.gather(*aws)
 
 
@@ -203,6 +237,21 @@ Clash subscription updater, supports the separation of rules and configuration f
         required=True,
         help="Merge rules in order",
         metavar="<Syntax>",
+    )
+    parser.add_argument(
+        "-f",
+        "--filename",
+        default="script.*.py",
+        help="`*` for rotate placeholder",
+        metavar="script.*.py",
+    )
+    parser.add_argument(
+        "-r",
+        "--file-max-rotate",
+        default=10,
+        type=int,
+        help="Max rotate file count",
+        metavar=10,
     )
 
     args = parser.parse_args()

@@ -60,7 +60,7 @@ WantedBy=multi-user.target
 
 ```bash
 yum -y install python3 python3-pip
-pip3 install pyyaml requests requests-file urllib3
+pip3 install requests requests-file urllib3 pyyaml astor
 ```
 
 5\. Create the systemd configuration file at `/etc/systemd/system/clashdog.service`
