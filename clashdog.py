@@ -127,8 +127,7 @@ async def run(currentInsert, argv):
         # 保存文件
         with open(filename, "w", encoding=resp.encoding, newline="\n") as stream:
             stream.write(resp.text)
-        
-        
+
         logging.info(f"Saved file to {abspath(filename)}")
 
         # 读取配置
@@ -225,12 +224,12 @@ Clash subscription updater, supports the separation of rules and configuration f
     front       |   Insert rules at beginning
     back        |   Add rules at the end
   * The `filter` of the rules, optional, support multi-select with `;` split, default is `off`, the following values are:
-    off         |   No filter used, conflict with others.
-    all         |   Exclude all rules, conflict with others.
+    off         |   No filter used, conflict with others
+    all         |   Exclude all rules, conflict with others
     geoip       |   Exclude `GEOIP`
     match       |   Exclude `MATCH`
     same        |   Exclude identical rules
-  * The `url` option is the clash subscription address, and you can also use the FILE scheme.
+  * The `url` option is the clash subscription address, and you can also use the FILE scheme
 """,
     )
     parser.add_argument(
@@ -248,9 +247,9 @@ Clash subscription updater, supports the separation of rules and configuration f
     parser.add_argument(
         "-f",
         "--filename",
-        default="script.*.py",
-        help="`*` for rotate placeholder",
-        metavar="script.*.py",
+        default="rules.star",
+        help="Final Generated script filename",
+        metavar="rules.star",
     )
     parser.add_argument(
         "-r",
@@ -259,6 +258,14 @@ Clash subscription updater, supports the separation of rules and configuration f
         type=int,
         help="Max rotate file count",
         metavar=10,
+    )
+    parser.add_argument(
+        "-p",
+        "--port",
+        default=9090,
+        type=int,
+        help="Port for clash RESTful API",
+        metavar=9090,
     )
 
     args = parser.parse_args()

@@ -35,7 +35,7 @@ mode: Script
 
 # https://github.com/Dreamacro/clash/releases/tag/premium
 script:
-    path: script.0.py
+    path: rules.star
 ```
 
 3\. Config [clash systemd](https://github.com/Dreamacro/clash/wiki/Running-Clash-as-a-service#systemd)
