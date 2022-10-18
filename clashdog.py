@@ -102,15 +102,15 @@ class RewriteRules(ast.NodeTransformer):
 
 def fileRotate(filename, max):
     for i in range(max - 1 if max > 0 else 0, -1, -1):
-        newpath = Path(filename.replace("*", f"{i}"))
-        oldpath = Path(filename.replace(*("*", f"{i-1}") if i else (".*", "")))
+        newpath = Path(f"{filename}.{i}")
+        oldpath = Path(f"{filename}.{i-1}" if i else filename)
         # remove the old file
         if newpath.exists() and newpath.is_file():
             os.remove(newpath)
         # change the new file to old file name
         if oldpath.exists() and oldpath.is_file():
             os.rename(oldpath, newpath)
-    return newpath
+    return oldpath
 
 
 async def run(currentInsert, argv):
@@ -160,7 +160,7 @@ async def run(currentInsert, argv):
         # 本地速度快不需要异步
         # clash本身支持软链接
         put(
-            "http://127.0.0.1:9090/configs?force=true",
+            f"http://127.0.0.1:{argv.port}/configs?force=true",
             json={"path": "config.yaml"},
         )
 
