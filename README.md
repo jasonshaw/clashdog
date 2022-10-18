@@ -60,7 +60,7 @@ WantedBy=multi-user.target
 
 ```bash
 yum -y install python3 python3-pip
-pip3 install requests requests-file urllib3 pyyaml astor
+pip3 install requests requests-file urllib3 pyyaml astor watchdog
 ```
 
 5\. Create the systemd configuration file at `/etc/systemd/system/clashdog.service`
@@ -75,7 +75,7 @@ Type=simple
 Restart=always
 ExecStart=/usr/bin/python3 -u /etc/clash/clashdog.py default_policy \
           -i url='file:///path/to/file' \
-          -i url='scheme:[//authority]/path[?query]'
+          -i url='scheme://[authority]/path[?query]'
 WorkingDirectory=/etc/clash
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=process
