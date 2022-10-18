@@ -16,15 +16,15 @@
 
 市面上大部分的Clash订阅都包含了完整的信息，但每个用户基本上都有一套自己的配置，多数情况下只会[引用](https://lancellc.gitbook.io/clash/clash-config-file/proxy-provider)订阅里的节点再配合自己的规则使用，更有甚者表示这些规则我都要。
 
-此项目就是用来实现这些功能的，与其它同类项目不一样的地方在于，这里采用`script`模式，脚本由`clashdog.py`基于`script.py`生成，尽量保证不去修改`config.yaml`。
+此项目就是用来实现这些功能的，与其它同类项目不一样的地方在于，这里采用`script`模式，脚本由`clashdog.py`基于`scriptcat.py`生成，尽量保证不去修改`config.yaml`。
 
-由于`script`模式所提供的接口并不多，脚本不得不重写`match`函数，为了确保逻辑一致，代码是从go迁移过来的。注意：脚本语言是[starlark](https://github.com/bazelbuild/starlark)，starlark是py的子集，py对下兼容，`clashdog.py`中引用了`script.py`。
+由于`script`模式所提供的接口并不多，脚本不得不重写`match`函数，为了确保逻辑一致，代码是从go迁移过来的。注意：脚本语言是[starlark](https://github.com/bazelbuild/starlark)，starlark是py的子集，py对下兼容，`clashdog.py`中引用了`scriptcat.py`。
 
 Clash订阅地址应遵循[URL Scheme](https://docs.cfw.lbyczf.com/contents/urlscheme.html)中设定的响应头，以便让`clashdog.py`更好的支持多线程。
 
 ## Getting Started
 
-1\. Download `script.py` and `clashdog.py` to `/etc/clash`
+1\. Download `scriptcat.py` and `clashdog.py` to `/etc/clash`
 
 2\. Modify `config.yaml`
 

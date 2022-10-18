@@ -1,4 +1,4 @@
-from script import ParseCIDR
+from scriptcat import ParseCIDR
 
 # 标准库
 import asyncio
@@ -102,10 +102,15 @@ class RewriteRules(ast.NodeTransformer):
 
 def fileRotate(filename, max):
     for i in range(max - 1 if max > 0 else 0, -1, -1):
-        p = Path(filename.replace("*", f"{i}"))
-        if p.exists() and p.is_file():
-            pass
-    return p
+        newpath = Path(filename.replace("*", f"{i}"))
+        oldpath = Path(filename.replace(*("*", f"{i-1}") if i else (".*", "")))
+        # remove the old file
+        if newpath.exists() and newpath.is_file():
+            os.remove(newpath)
+        # change the new file to old file name
+        if oldpath.exists() and oldpath.is_file():
+            os.rename(oldpath, newpath)
+    return newpath
 
 
 async def run(currentInsert, argv):
@@ -122,7 +127,9 @@ async def run(currentInsert, argv):
         # 保存文件
         with open(filename, "w", encoding=resp.encoding, newline="\n") as stream:
             stream.write(resp.text)
-            logging.info(f"Saved file to {stream.name}")
+        
+        
+        logging.info(f"Saved file to {abspath(filename)}")
 
         # 读取配置
         with open(abspath("config.yaml")) as stream:
@@ -137,7 +144,7 @@ async def run(currentInsert, argv):
                 policies[p.name] = p.disable_udp if "disable-udp" in p else False
 
         # 生成脚本
-        script = astor.parse_file("script.py")
+        script = astor.parse_file("scriptcat.py")
         script = ast.fix_missing_locations(RewriteRules().visit(script))
 
         with open(
