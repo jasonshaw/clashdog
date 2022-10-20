@@ -122,7 +122,7 @@ class BaseRule:
     async def wait(self):
         pass
 
-    async def run(self, currentInsert, argv):
+    async def loop(self, currentInsert, argv):
         self.push = currentInsert.push
         self.filter = currentInsert.filter
         self.url = currentInsert.url
@@ -133,36 +133,34 @@ class BaseRule:
 
         self.index = argv.insert.index(currentInsert)
 
-        await self.__run()
+        while True:
+            await self.load()
+            await self.save()
 
-    async def __run(self):
-        await self.load()
-        await self.save()
+            # 重载配置
+            logging.info("Reload configuration")
+            # 本地速度快不需要异步
+            # clash本身支持软链接
+            put(
+                f"http://127.0.0.1:{self.port}/configs?force=true",
+                json={"path": BaseRule.configYaml},
+            )
 
-        # 重载配置
-        logging.info("Reload configuration")
-        # 本地速度快不需要异步
-        # clash本身支持软链接
-        put(
-            f"http://127.0.0.1:{self.port}/configs?force=true",
-            json={"path": BaseRule.configYaml},
-        )
-
-        await self.wait()
+            await self.wait()
 
 
 class HTTPRule(BaseRule):
-    def filename(self):
+    def __filename(self):
         return re.findall('filename="(.+)"', self.headers["Content-Disposition"])[0]
 
-    def interval(self):
+    def __interval(self):
         return int(self.headers["profile-update-interval"])
 
     async def load(self):
         await super().load()
 
-        self.filename = HTTPRule.filename(self)
-        self.interval = HTTPRule.interval(self)
+        self.filename = self.__filename()
+        self.interval = self.__interval()
 
     async def save(self):
         await super().save()
@@ -178,40 +176,26 @@ class HTTPRule(BaseRule):
 
 
 class FileRule(BaseRule, FileSystemEventHandler):
-    async def run(self, currentInsert, argv):
-        super().run(currentInsert, argv)
+    async def wait(self):
         observer = Observer()
-        observer.schedule(self, currentInsert.url.path)
+        observer.schedule(self, self.url.path)
         observer.start()
+        observer.join()
         self.observer = observer
 
-    async def wait(self):
-        self.observer.join()
-
     def on_modified(self, event):
-        if event.src_path != self.url.path:
-            self.observer.stop()
-            self.observer.join()
-            return
-        super().__run()
-
-
-async def run(currentInsert, argv):
-    while True:
-        if currentInsert.url.scheme == "file":
-            rule = FileRule()
-        else:
-            rule = HTTPRule()
-        await rule.run(currentInsert, argv)
+        logging.debug(event)
+        self.observer.stop()
 
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     argv = argvparse()
     aws = []
     for i in argv.insert:
-        aws.append(run(i, argv))
+        rule = FileRule() if i.url.scheme == "file" else HTTPRule()
+        aws.append(rule.loop(i, argv))
     await asyncio.gather(*aws)
 
 
