@@ -177,11 +177,11 @@ class HTTPRule(BaseRule):
 
 class FileRule(BaseRule, FileSystemEventHandler):
     async def wait(self):
-        observer = Observer()
-        observer.schedule(self, self.url.path)
-        observer.start()
-        observer.join()
-        self.observer = observer
+        obs = Observer()
+        obs.schedule(self, self.url.path)
+        obs.start()
+        obs.join()
+        self.observer = obs
 
     def on_modified(self, event):
         logging.debug(event)
@@ -261,7 +261,9 @@ def get(url):
         s.mount("file://", FileAdapter())
         s.mount("http://", adapter)
         s.mount("https://", adapter)
-        return s.get(url if isinstance(url, str) else urlunparse(url))
+        return s.get(
+            urlunparse(url) if isinstance(url, tuple) and len(url) == 6 else url
+        )
 
 
 def argvparse():
