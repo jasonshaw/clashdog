@@ -1,6 +1,7 @@
 from scriptcat import ParseCIDR
 
 # 标准库
+import threading
 import asyncio
 import logging
 import argparse
@@ -9,8 +10,7 @@ import os
 import re
 import ast
 
-from urllib.parse import urlparse
-from urllib.parse import urlunparse
+from urllib.parse import urlparse, urlunparse
 from pathlib import Path
 
 # 第三方库
@@ -176,16 +176,24 @@ class HTTPRule(BaseRule):
 
 
 class FileRule(BaseRule, FileSystemEventHandler):
-    async def wait(self):
+    async def __init__(self):
+        super().__init__()
+        self.__event = asyncio.Event()
+        self.__lock = threading.Lock()
+
         obs = Observer()
         obs.schedule(self, self.url.path)
         obs.start()
-        obs.join()
-        self.observer = obs
+
+    async def wait(self):
+        with self.__lock:
+            await self.__event.wait()
+            self.__event.clear()
 
     def on_modified(self, event):
         logging.debug(event)
-        self.observer.stop()
+        with self.__lock:
+            self.__event.set()
 
 
 async def main():
