@@ -93,7 +93,8 @@ class BaseInsert:
                 p = DictObj(p)
                 self.policies[p.name] = p.disable_udp if "disable-udp" in p else False
 
-            self.port = config.get("external-controller", self.port)
+            host = config.get("external-controller", f":{self.port}")
+            self.port = urlparse(f"http://{host}").port
 
         logging.debug(self.policies)
 
