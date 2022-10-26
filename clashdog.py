@@ -26,63 +26,12 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 
-def parse_rule(rules, Policies, _Policies):
-    for i, e in enumerate(rules):
-        rule = e.split(",")
-
-        if "IP-CIDR" in rule[0]:
-            _, ipnet, err = ParseCIDR(rule[1])
-            if err:
-                logging.error("Illegal IP %s", e)
-                continue
-            rule[1] = [ipnet, rule[1]]
-
-        p = 2 if len(rule) >= 3 else 1
-        if rule[p] not in Policies:
-            logging.warning("Missing Policies %s", e)
-            rule[p] = _Policies
-
-        rule.append(e)
-        rules[i] = rule
-
-
-def merge_rules(e, resp):
-    ee = [None] * len(e)
-    for i, v in enumerate(e):
-        ee[i] = argparse.Namespace(data=filespt_get(v.url), filter=v.filter)
-        if urlparse(v.url).scheme != "file":
-            save_as_yaml(ee[i].data)
-    ee.append(argparse.Namespace(data=resp, filter="off"))
-
-    rules = []
-    for i, v in enumerate(ee):
-        if v.filter == "all":
-            ee[i] = None
-            continue
-        v.data = yaml.load(v.data.text, Loader=yaml.Loader)["rules"]
-        if "geoip" in v.filter:
-            v.data = [i for i in v.data if "GEOIP" not in i]
-        if "match" in v.filter:
-            v.data = [i for i in v.data if "MATCH" not in i]
-        rules.extend(v.data)
-    return rules
-
-
-def save_as_skpy(resp, _Policies, e):
-    with open("./script.rules.py", "w", encoding="utf-8", newline="\n") as stream:
-        # 解析规则
-        rules = merge_rules(e, resp)
-        parse_rule(rules, Policies, _Policies)
-        for i, r in enumerate(rules):
-            stream.write("{0}{1}\n".format(r, "," if i + 1 < len(rules) else "\n]"))
-
-
 class BaseInsert:
     async def load(self):
         self.policies = {"DIRECT": False, "REJECT": False}  # policy: disable-udp
 
         # 读取配置
-        with open(abspath(self.config_file)) as stream:
+        with open(abspath(self.configPath)) as stream:
             config = yaml.load(stream, Loader=yaml.Loader)
 
             for p in config.get("proxies", []):
@@ -111,7 +60,7 @@ class BaseInsert:
         script = ast.fix_missing_locations(RewriteRules().visit(script))
 
         with open(
-            fileRotate(self.rotate_filename, self.file_max_rotate),
+            fileRotate(self.rotateFileName, self.fileMaxRotate),
             "w",
             encoding="utf-8",
             newline="\n",
@@ -123,16 +72,20 @@ class BaseInsert:
         pass
 
     async def loop(self, currentInsert, argv):
-        self.push = currentInsert.push
         self.filter = currentInsert.filter
         self.url = currentInsert.url
 
-        self.rotate_filename = argv.filename
-        self.file_max_rotate = argv.file_max_rotate
+        self.defaultPolicy = argv.default_policy
+        self.rotateFileName = argv.filename
+        self.fileMaxRotate = argv.file_max_rotate
         self.port = argv.port
-        self.config_file = argv.config_file
+        self.configPath = argv.config_file
 
-        self.index = argv.insert.index(currentInsert)
+        offset = argv.insert.index(currentInsert)
+        self.index = sum(
+            [1 for x in argv.insert[offset + 1 :] if x.push == "front"],
+            offset if currentInsert.push == "back" else 0,
+        )
 
         while True:
             await self.load()
@@ -144,14 +97,14 @@ class BaseInsert:
             # clash本身支持软链接
             put(
                 f"http://127.0.0.1:{self.port}/configs?force=true",
-                json={"path": self.config_file},
+                json={"path": self.configPath},
             )
 
             await self.wait()
 
 
 class HTTPInsert(BaseInsert):
-    def __filename(self):
+    def __fileName(self):
         return re.findall('filename="(.+)"', self.headers["Content-Disposition"])[0]
 
     def __interval(self):
@@ -160,19 +113,19 @@ class HTTPInsert(BaseInsert):
     async def load(self):
         await super().load()
 
-        self.filename = self.__filename()
+        self.fileName = self.__fileName()
         self.interval = self.__interval()
 
     async def save(self):
         await super().save()
 
-        with open(self.filename, "w", encoding=self.encoding, newline="\n") as stream:
+        with open(self.fileName, "w", encoding=self.encoding, newline="\n") as stream:
             stream.write(self.text)
 
-        logging.info(f"Saved file to {abspath(self.filename)}")
+        logging.info(f"saved file to {abspath(self.fileName)}")
 
     async def wait(self):
-        logging.info(f"{self.filename} next update in {self.interval} hours")
+        logging.info(f"{self.fileName} next update in {self.interval} hours")
         await asyncio.sleep(self.interval * 3600)
 
 
@@ -185,6 +138,7 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
         obs = Observer()
         obs.schedule(self, self.url.path)
         obs.start()
+        logging.debug(obs)
 
     async def wait(self):
         with self.__lock:
@@ -197,24 +151,50 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
             self.__event.set()
 
 
-async def main():
-    logging.basicConfig(level=logging.DEBUG)
-
-    argv = argvparse()
-    aws = []
-    for i in argv.insert:
-        aws.append(
-            (FileInsert() if i.url.scheme == "file" else HTTPInsert()).loop(i, argv)
-        )
-    await asyncio.gather(*aws)
-
-
 class AddRules(ast.NodeTransformer):
+    __Rules = []
+
     def __init__(self, insert):
         super().__init__()
 
-        self.data = yaml.load(insert.text, Loader=yaml.Loader)["rules"]
-        self.index = insert.index
+        data = yaml.load(insert.text, Loader=yaml.Loader)["rules"]
+
+        for i in insert.filter:
+            if i == "off":
+                break
+            if i == "all":
+                data = []
+                break
+            if i == "geoip":
+                data = [x for x in data if "GEOIP" not in x]
+                continue
+            if i == "match":
+                data = [x for x in data if "MATCH" not in x]
+                continue
+            if i == "same":
+                # TODO
+                continue
+
+        for i, e in enumerate(data):
+            rule = e.split(",")
+            if len(rule) > 2:
+                pass
+            rule.insert(0, e)
+
+            if "IP-CIDR" in rule[1]:
+                _, ipnet, err = ParseCIDR(rule[2])
+                if err:
+                    logging.error(f"illegal IP {e}")
+                    continue
+                rule[2] = ipnet
+
+            j = 2 if rule[1] == "MATCH" else 3
+            if rule[j] not in insert.policies:
+                logging.warning(f"missing policy {e}")
+                rule[j] = insert.defaultPolicy
+            data[i] = rule
+
+        AddRules.__Rules.insert(insert.index, data)
 
     def visit_Module(self, node):
         node.body.insert(0, ast.Assign([ast.Name("_RULES")], ast.List([]), None))
@@ -230,6 +210,18 @@ class RewriteRules(ast.NodeTransformer):
         ):
             return node
         return ast.Assign(node.targets[:1], node.targets[1], node.type_comment)
+
+
+async def main():
+    logging.basicConfig(level=logging.DEBUG)
+
+    argv = argvparse()
+    aws = []
+    for i in argv.insert:
+        aws.append(
+            (FileInsert() if i.url.scheme == "file" else HTTPInsert()).loop(i, argv)
+        )
+    await asyncio.gather(*aws)
 
 
 class DictObj(dict):

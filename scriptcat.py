@@ -124,7 +124,7 @@ def CIDRMask(ones, bits):
         return nil
     if ones < 0 or ones > bits:
         return nil
-    l = bits / 8
+    l = int(bits / 8)
     m = [0] * l
     n = uint(ones)
     for i in range(l):
