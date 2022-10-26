@@ -77,15 +77,12 @@ def save_as_skpy(resp, _Policies, e):
             stream.write("{0}{1}\n".format(r, "," if i + 1 < len(rules) else "\n]"))
 
 
-class BaseRule:
-    configYaml = "config.yaml"
-    scriptcat = "scriptcat.py"
-
+class BaseInsert:
     async def load(self):
         self.policies = {"DIRECT": False, "REJECT": False}  # policy: disable-udp
 
         # 读取配置
-        with open(abspath(BaseRule.configYaml)) as stream:
+        with open(abspath(self.config_file)) as stream:
             config = yaml.load(stream, Loader=yaml.Loader)
 
             for p in config.get("proxies", []):
@@ -95,6 +92,8 @@ class BaseRule:
             for p in config.get("proxy-groups", []):
                 p = DictObj(p)
                 self.policies[p.name] = p.disable_udp if "disable-udp" in p else False
+
+            self.port = config.get("external-controller", self.port)
 
         logging.debug(self.policies)
 
@@ -106,8 +105,8 @@ class BaseRule:
         self.headers = resp.headers
 
     async def save(self):
-        script = astor.parse_file(BaseRule.scriptcat)
-        script = ast.fix_missing_locations(AddRules().visit(script))
+        script = astor.parse_file("scriptcat.py")
+        script = ast.fix_missing_locations(AddRules(self).visit(script))
         script = ast.fix_missing_locations(RewriteRules().visit(script))
 
         with open(
@@ -130,6 +129,7 @@ class BaseRule:
         self.rotate_filename = argv.filename
         self.file_max_rotate = argv.file_max_rotate
         self.port = argv.port
+        self.config_file = argv.config_file
 
         self.index = argv.insert.index(currentInsert)
 
@@ -143,13 +143,13 @@ class BaseRule:
             # clash本身支持软链接
             put(
                 f"http://127.0.0.1:{self.port}/configs?force=true",
-                json={"path": BaseRule.configYaml},
+                json={"path": self.config_file},
             )
 
             await self.wait()
 
 
-class HTTPRule(BaseRule):
+class HTTPInsert(BaseInsert):
     def __filename(self):
         return re.findall('filename="(.+)"', self.headers["Content-Disposition"])[0]
 
@@ -175,7 +175,7 @@ class HTTPRule(BaseRule):
         await asyncio.sleep(self.interval * 3600)
 
 
-class FileRule(BaseRule, FileSystemEventHandler):
+class FileInsert(BaseInsert, FileSystemEventHandler):
     async def __init__(self):
         super().__init__()
         self.__event = asyncio.Event()
@@ -202,16 +202,18 @@ async def main():
     argv = argvparse()
     aws = []
     for i in argv.insert:
-        rule = FileRule() if i.url.scheme == "file" else HTTPRule()
-        aws.append(rule.loop(i, argv))
+        aws.append(
+            (FileInsert() if i.url.scheme == "file" else HTTPInsert()).loop(i, argv)
+        )
     await asyncio.gather(*aws)
 
 
 class AddRules(ast.NodeTransformer):
-    def __init__(self):
+    def __init__(self, insert):
         super().__init__()
 
-        self.__rules = []
+        self.data = yaml.load(insert.text, Loader=yaml.Loader)["rules"]
+        self.index = insert.index
 
     def visit_Module(self, node):
         node.body.insert(0, ast.Assign([ast.Name("_RULES")], ast.List([]), None))
@@ -286,35 +288,35 @@ Clash subscription updater, supports the separation of rules and configuration f
             The insertion position is determined by the subparameter `push` and
             is merged in the order of appearance of this optional parameter.
 
-  * The default value of `push` is `back`, only the following are supported:
-    front       |   Insert rules at beginning
-    back        |   Add rules at the end
-  * The `filter` of the rules, optional, support multi-select with `;` split, default is `off`, the following values are:
-    off         |   No filter used, conflict with others
-    all         |   Exclude all rules, conflict with others
-    geoip       |   Exclude `GEOIP`
-    match       |   Exclude `MATCH`
-    same        |   Exclude identical rules
-  * The `url` option is the clash subscription address, and you can also use the FILE scheme
+    * The default value of `push` is `back`, only the following are supported:
+        front       |   Insert rules at beginning
+        back        |   Add rules at the end
+    * The `filter` of the rules, optional, support multi-select with `;` split, default is `off`, the following values are:
+        off         |   No filter used, conflict with others.
+        all         |   Exclude all rules, conflict with others.
+        geoip       |   Exclude `GEOIP`
+        match       |   Exclude `MATCH`
+        same        |   Exclude identical rules
+    * The `url` option is the clash subscription address, and you can also use the FILE scheme.
 """,
     )
     parser.add_argument(
         "default_policy",
-        help="The clashdog checks for the existence of rule-policies in `config.yaml` and uses `default_policy` when they do not exist",
+        help="The clashdog checks for the existence of rule-policies in config.yaml and uses default_policy when they do not exist.",
     )
     parser.add_argument(
         "-i",
         "--insert",
         action="append",
         required=True,
-        help="Merge rules in order",
+        help="merge rules in order",
         metavar="<Syntax>",
     )
     parser.add_argument(
         "-f",
         "--filename",
         default="rules.star",
-        help="Final Generated script filename",
+        help="final generated script filename",
         metavar="rules.star",
     )
     parser.add_argument(
@@ -322,7 +324,7 @@ Clash subscription updater, supports the separation of rules and configuration f
         "--file-max-rotate",
         default=10,
         type=int,
-        help="Max rotate file count",
+        help="max rotate file count",
         metavar=10,
     )
     parser.add_argument(
@@ -330,8 +332,15 @@ Clash subscription updater, supports the separation of rules and configuration f
         "--port",
         default=9090,
         type=int,
-        help="Port for clash RESTful API",
+        help="port for clash RESTful API",
         metavar=9090,
+    )
+    parser.add_argument(
+        "-c",
+        "--config-file",
+        default="config.yaml",
+        help="clash configuration file",
+        metavar="config.yaml",
     )
 
     args = parser.parse_args()
