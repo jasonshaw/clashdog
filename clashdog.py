@@ -152,7 +152,7 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
 
 
 class AddRules(ast.NodeTransformer):
-    __Rules = []
+    _Rules = []
 
     def __init__(self, insert):
         super().__init__()
@@ -205,7 +205,8 @@ class AddRules(ast.NodeTransformer):
 
             data[i] = rule
 
-        AddRules.__Rules.insert(insert.index, data)
+        assert AddRules._Rules, "not enough space is reserved for the list"
+        AddRules._Rules[insert.index] = data
 
     def visit_Module(self, node):
         node.body.insert(0, ast.Assign([ast.Name("_RULES")], ast.List([]), None))
@@ -232,6 +233,7 @@ async def main():
         aws.append(
             (FileInsert() if i.url.scheme == "file" else HTTPInsert()).loop(i, argv)
         )
+    AddRules._Rules = [None] * len(argv.insert)
     await asyncio.gather(*aws)
 
 
