@@ -179,8 +179,8 @@ class AddRules(ast.NodeTransformer):
     def __toAstRules(cls):
         return AddRules.__toAstLiterals(cls._Rules)
 
-    def __new__(cls):
-        assert AddRules._Rules, "not enough space is reserved for the list"
+    def __new__(cls, insert):
+        assert len(AddRules._Rules) > insert.push, "insufficient list space"
         return super().__new__(cls)
 
     def __init__(self, insert):
