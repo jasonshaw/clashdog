@@ -81,10 +81,10 @@ class BaseInsert:
         self.port = argv.port
         self.configPath = argv.config_file
 
-        offset = argv.insert.index(currentInsert)
-        self.index = sum(
-            [1 for x in argv.insert[offset + 1 :] if x.push == "front"],
-            offset if currentInsert.push == "back" else 0,
+        index = argv.insert.index(currentInsert)
+        self.push = sum(
+            [1 for x in argv.insert[index + 1 :] if x.push == "front"],
+            index if currentInsert.push == "back" else 0,
         )
 
         while True:
@@ -194,7 +194,7 @@ class AddRules(ast.NodeTransformer):
                 rule[j] = p = insert.defaultPolicy
 
             if j == 2:
-                rule.insert(2, rule[2])
+                rule.insert(j, rule[j])
 
             if False:
                 pass
@@ -206,7 +206,7 @@ class AddRules(ast.NodeTransformer):
             data[i] = rule
 
         assert AddRules._Rules, "not enough space is reserved for the list"
-        AddRules._Rules[insert.index] = data
+        AddRules._Rules[insert.push] = data
 
     def visit_Module(self, node):
         node.body.insert(0, ast.Assign([ast.Name("_RULES")], ast.List([]), None))
