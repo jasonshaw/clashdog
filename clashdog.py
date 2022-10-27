@@ -9,8 +9,9 @@ import sys
 import os
 import re
 import ast
+import errno
 
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse, unquote
 from pathlib import Path
 
 # 第三方库
@@ -27,7 +28,7 @@ from watchdog.events import FileSystemEventHandler
 
 
 class BaseInsert:
-    def __onLoopIn(self):
+    def onLoopInit(self):
         pass
 
     async def load(self):
@@ -90,7 +91,7 @@ class BaseInsert:
             index if currentInsert.push == "back" else 0,
         )
 
-        self.__onLoopIn()
+        self.onLoopInit()
 
         while True:
             await self.load()
@@ -135,14 +136,20 @@ class HTTPInsert(BaseInsert):
 
 
 class FileInsert(BaseInsert, FileSystemEventHandler):
-    def __onLoopIn(self):
+    def onLoopInit(self):
         self.__event = asyncio.Event()
         self.__lock = threading.Lock()
 
+        path_parts = [unquote(x) for x in self.url.path.split("/")]
+        while path_parts and not path_parts[0]:
+            path_parts.pop(0)
+        if any(os.sep in p for p in path_parts):
+            raise IOError(errno.ENOENT, os.strerror(errno.ENOENT))
+
         obs = Observer()
-        obs.schedule(self, self.url.path)
+        obs.schedule(self, self.fileName)
         obs.start()
-        logging.debug(obs)
+        logging.debug(obs._watches)
 
     async def wait(self):
         with self.__lock:
