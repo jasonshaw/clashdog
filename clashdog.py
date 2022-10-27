@@ -177,21 +177,32 @@ class AddRules(ast.NodeTransformer):
 
         for i, e in enumerate(data):
             rule = e.split(",")
-            if len(rule) > 2:
-                pass
             rule.insert(0, e)
 
             if "IP-CIDR" in rule[1]:
                 _, ipnet, err = ParseCIDR(rule[2])
                 if err:
-                    logging.error(f"illegal IP {e}")
+                    logging.error(f"illegal IP {err['Text']}")
                     continue
                 rule[2] = ipnet
 
             j = 2 if rule[1] == "MATCH" else 3
-            if rule[j] not in insert.policies:
-                logging.warning(f"missing policy {e}")
-                rule[j] = insert.defaultPolicy
+            p = rule[j]
+
+            if p not in insert.policies:
+                logging.warning(f"loss policy {e}")
+                rule[j] = p = insert.defaultPolicy
+
+            if j == 2:
+                rule.insert(2, rule[2])
+
+            if False:
+                pass
+            elif len(rule) == 5 and insert.policies[p] and "disable-udp" not in rule[4]:
+                rule[4] += ";disable-udp"
+            elif len(rule) == 4:
+                rule.append("disable-udp" if insert.policies[p] else "")
+
             data[i] = rule
 
         AddRules.__Rules.insert(insert.index, data)
@@ -239,10 +250,10 @@ class DictObj(dict):
     __setattr__ = dict.__setitem__
 
 
-def fileRotate(filename, max):
+def fileRotate(fileName, max):
     for i in range(max - 1 if max > 0 else 0, -1, -1):
-        newpath = Path(f"{filename}.{i}")
-        oldpath = Path(f"{filename}.{i-1}" if i else filename)
+        newpath = Path(f"{fileName}.{i}")
+        oldpath = Path(f"{fileName}.{i-1}" if i else fileName)
         # remove the old file
         if newpath.exists() and newpath.is_file():
             os.remove(newpath)

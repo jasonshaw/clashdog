@@ -415,7 +415,7 @@ type IPNet struct {
 因为 starlark 不支持自定义类型，所以需要收录上面这些定义，以便后续理解。
 """
 # rule[1:] = ["Type", "Matcher", "Policy", "Option"]
-# rule[1:] = ["MATCH", "Policy", "Option"]
+# rule[1:] = ["MATCH", "Policy", "Policy", "Option"]
 #
 # rule[0] = "original_rule_string"
 #
