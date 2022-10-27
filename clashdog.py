@@ -65,8 +65,8 @@ class BaseInsert:
             encoding="utf-8",
             newline="\n",
         ) as stream:
-            stream.write(astor.dump_tree(script))
             stream.write(astor.to_source(script))
+            stream.write(f"\n'''\n{astor.dump_tree(script)}\n'''\n")
 
     async def wait(self):
         pass
@@ -154,6 +154,35 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
 class AddRules(ast.NodeTransformer):
     _Rules = []
 
+    @staticmethod
+    def __toAstLiterals(data):
+        if isinstance(data, list):
+            return AddRules.__toAstList(data)
+        if isinstance(data, dict):
+            return AddRules.__toAstDict(data)
+        return ast.Constant(data)
+
+    @staticmethod
+    def __toAstList(data):
+        return ast.List([AddRules.__toAstLiterals(x) for x in data])
+
+    @staticmethod
+    def __toAstDict(data):
+        keys = []
+        vals = []
+        for k, v in data.items():
+            keys.append(AddRules.__toAstLiterals(k))
+            vals.append(AddRules.__toAstLiterals(v))
+        return ast.Dict(keys, vals)
+
+    @classmethod
+    def __toAstRules(cls):
+        return AddRules.__toAstLiterals(cls._Rules)
+
+    def __new__(cls):
+        assert AddRules._Rules, "not enough space is reserved for the list"
+        return super().__new__(cls)
+
     def __init__(self, insert):
         super().__init__()
 
@@ -205,11 +234,12 @@ class AddRules(ast.NodeTransformer):
 
             data[i] = rule
 
-        assert AddRules._Rules, "not enough space is reserved for the list"
         AddRules._Rules[insert.push] = data
 
     def visit_Module(self, node):
-        node.body.insert(0, ast.Assign([ast.Name("_RULES")], ast.List([]), None))
+        node.body.insert(
+            0, ast.Assign([ast.Name("_RULES")], AddRules.__toAstRules(), None)
+        )
         return node
 
 
@@ -328,10 +358,10 @@ Clash subscription updater, supports the separation of rules and configuration f
     parser.add_argument(
         "-r",
         "--file-max-rotate",
-        default=10,
+        default=3,
         type=int,
         help="max rotate file count",
-        metavar=10,
+        metavar=3,
     )
     parser.add_argument(
         "-p",

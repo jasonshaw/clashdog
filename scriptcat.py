@@ -478,7 +478,7 @@ def setMetadata(ctx, metadata, k, v, *args, **kwargs):
         pass
     elif args[0] == nil:
         args = args[1:]
-    elif not args[0]:
+    elif not args[0] or type(v) != "string":
         args[0] = metadata
     else:
         args[0] = metadata[args[0]]
