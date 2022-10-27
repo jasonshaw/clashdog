@@ -27,6 +27,9 @@ from watchdog.events import FileSystemEventHandler
 
 
 class BaseInsert:
+    def __onLoopIn(self):
+        pass
+
     async def load(self):
         self.policies = {"DIRECT": False, "REJECT": False}  # policy: disable-udp
 
@@ -87,6 +90,8 @@ class BaseInsert:
             index if currentInsert.push == "back" else 0,
         )
 
+        self.__onLoopIn()
+
         while True:
             await self.load()
             await self.save()
@@ -130,8 +135,7 @@ class HTTPInsert(BaseInsert):
 
 
 class FileInsert(BaseInsert, FileSystemEventHandler):
-    async def __init__(self):
-        super().__init__()
+    def __onLoopIn(self):
         self.__event = asyncio.Event()
         self.__lock = threading.Lock()
 
