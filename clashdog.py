@@ -150,7 +150,7 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
 
         obs = Observer()
         obs.schedule(self, self.fileName)
-        # obs.start()
+        obs.start()
         logging.debug(obs._watches)
 
     async def wait(self):
@@ -196,28 +196,32 @@ class AddRules(ast.NodeTransformer):
         super().__init__()
 
         assert len(AddRules._Rules) > insert.push, "insufficient list space"
+        self.filter = set(insert.filter)  # complexity -> Average: O(1), Worst: O(n)
+
         data = yaml.load(insert.text, Loader=yaml.Loader)["rules"]
 
-        for i in insert.filter:
-            if i == "off":
-                break
-            if i == "all":
-                data = []
-                break
-            if i == "geoip":
-                data = [x for x in data if "GEOIP" not in x]
-                continue
-            if i == "match":
-                data = [x for x in data if "MATCH" not in x]
-                continue
-            if i == "same":
-                # TODO
-                continue
+        # 过滤规则
+        if False:
+            pass
+        elif "off" in self.filter:
+            pass
+        elif "all" in self.filter:
+            data = []
+        else:
+            # TODO: same
+            data = [
+                x
+                for x in data
+                if ("geoip" in self.filter and "GEOIP" not in x)
+                or ("match" in self.filter and "MATCH" not in x)
+            ]
 
+        # 解析规则
         for i, e in enumerate(data):
             rule = e.split(",")
-            rule.insert(0, e)
+            rule.insert(0, e)  # original_rule_string
 
+            # 创建 IPNet 对象
             if "IP-CIDR" in rule[1]:
                 _, ipnet, err = ParseCIDR(rule[2])
                 if err:
@@ -228,13 +232,16 @@ class AddRules(ast.NodeTransformer):
             j = 2 if rule[1] == "MATCH" else 3
             p = rule[j]
 
+            # 替换不存在的 Policy
             if p not in insert.policies:
                 logging.warning(f"loss policy {e}")
                 rule[j] = p = insert.defaultPolicy
 
+            # 填充 MATCH 中缺少的 Matcher，以便让 `rule` 的长度保持一致
             if j == 2:
                 rule.insert(j, rule[j])
 
+            # 确保 Option 始终存在，哪怕没有值
             if False:
                 pass
             elif len(rule) == 5 and insert.policies[p] and "disable-udp" not in rule[4]:

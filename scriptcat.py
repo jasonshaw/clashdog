@@ -419,8 +419,7 @@ type IPNet struct {
 #
 # rule[0] = "original_rule_string"
 #
-# if "IP-CIDR" in rule[1]:
-#   rule[2] = IPNet
+# rule[2] = IPNet if "IP-CIDR" in rule[1] else string
 #
 # Option 中新增 disable-udp 用 `;` 分割，与 Proxy Groups 中的含义一致，手动添加将忽略配置文件中的设置。
 # 由于配置文件是静态的，外加脚本缺少相关接口，因此无法考虑 UDP 传递问题。
