@@ -85,6 +85,7 @@ class BaseInsert:
         self.port = argv.port
         self.configPath = argv.config_file
 
+        # 计算实际下标
         index = argv.insert.index(currentInsert)
         self.push = sum(
             [1 for x in argv.insert[index + 1 :] if x.push == "front"],
@@ -145,10 +146,11 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
             path_parts.pop(0)
         if any(os.sep in p for p in path_parts):
             raise IOError(errno.ENOENT, os.strerror(errno.ENOENT))
+        self.fileName = "path_parts"
 
         obs = Observer()
         obs.schedule(self, self.fileName)
-        obs.start()
+        # obs.start()
         logging.debug(obs._watches)
 
     async def wait(self):
@@ -188,15 +190,12 @@ class AddRules(ast.NodeTransformer):
 
     @classmethod
     def __toAstRules(cls):
-        return AddRules.__toAstLiterals(cls._Rules)
-
-    def __new__(cls, insert):
-        assert len(AddRules._Rules) > insert.push, "insufficient list space"
-        return super().__new__(cls)
+        return cls.__toAstLiterals(cls._Rules)
 
     def __init__(self, insert):
         super().__init__()
 
+        assert len(AddRules._Rules) > insert.push, "insufficient list space"
         data = yaml.load(insert.text, Loader=yaml.Loader)["rules"]
 
         for i in insert.filter:
