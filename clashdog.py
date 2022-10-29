@@ -138,15 +138,9 @@ class HTTPInsert(BaseInsert):
 
 class FileInsert(BaseInsert, FileSystemEventHandler):
     def __fileName(self):
-        url_parts = self.url
-
-        # Reject URLs with a hostname component
-        if url_parts.netloc and url_parts.netloc != "localhost":
-            raise ValueError("file: URLs with hostname components are not permitted")
-
         # Split the path on / (the URL directory separator) and decode any
         # % escapes in the parts
-        path_parts = [unquote(p) for p in url_parts.path.split("/")]
+        path_parts = [unquote(p) for p in self.url.path.split("/")]
 
         # Strip out the leading empty parts created from the leading /'s
         while path_parts and not path_parts[0]:
@@ -296,7 +290,8 @@ class AddRules(ast.NodeTransformer):
 
     def visit_Module(self, node):
         node.body.insert(
-            0, ast.Assign([ast.Name("_RULES")], AddRules.__toAstRules(), None)
+            0,
+            ast.Assign([ast.Name("_RULES", ast.Store)], AddRules.__toAstRules(), None),
         )
         return node
 
