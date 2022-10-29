@@ -405,7 +405,7 @@ Clash subscription updater, supports the separation of rules and configuration f
         metavar="config.yaml",
     )
     parser.add_argument(
-        "-v", "--version", action="version", version="1.0.2-alpha+20221029"
+        "-v", "--version", action="version", version="1.0.3-alpha+20221029"
     )
 
     args = parser.parse_args()
@@ -454,5 +454,59 @@ Clash subscription updater, supports the separation of rules and configuration f
     return args
 
 
+def run(main, *, debug=None):
+    from asyncio import events, coroutines
+
+    if events._get_running_loop() is not None:
+        raise RuntimeError("asyncio.run() cannot be called from a running event loop")
+
+    if not coroutines.iscoroutine(main):
+        raise ValueError("a coroutine was expected, got {!r}".format(main))
+
+    loop = events.new_event_loop()
+    try:
+        events.set_event_loop(loop)
+        if debug is not None:
+            loop.set_debug(debug)
+        return loop.run_until_complete(main)
+    finally:
+        try:
+            _cancel_all_tasks(loop)
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            if sys.version_info.micro >= 9:
+                loop.run_until_complete(loop.shutdown_default_executor())
+        finally:
+            events.set_event_loop(None)
+            loop.close()
+
+
+def _cancel_all_tasks(loop):
+    from asyncio import tasks
+
+    to_cancel = tasks.all_tasks(loop)
+    if not to_cancel:
+        return
+
+    for task in to_cancel:
+        task.cancel()
+
+    loop.run_until_complete(tasks.gather(*to_cancel, loop=loop, return_exceptions=True))
+
+    for task in to_cancel:
+        if task.cancelled():
+            continue
+        if task.exception() is not None:
+            loop.call_exception_handler(
+                {
+                    'message': 'unhandled exception during asyncio.run() shutdown',
+                    'exception': task.exception(),
+                    'task': task,
+                }
+            )
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    if sys.version_info.micro < 7:
+        run(main())
+    else:
+        asyncio.run(main())
