@@ -137,28 +137,60 @@ class HTTPInsert(BaseInsert):
 
 
 class FileInsert(BaseInsert, FileSystemEventHandler):
+    def __fileName(self):
+        url_parts = self.url
+
+        # Reject URLs with a hostname component
+        if url_parts.netloc and url_parts.netloc != "localhost":
+            raise ValueError("file: URLs with hostname components are not permitted")
+
+        # Split the path on / (the URL directory separator) and decode any
+        # % escapes in the parts
+        path_parts = [unquote(p) for p in url_parts.path.split("/")]
+
+        # Strip out the leading empty parts created from the leading /'s
+        while path_parts and not path_parts[0]:
+            path_parts.pop(0)
+
+        # If os.sep is in any of the parts, someone fed us some shenanigans.
+        # Treat is like a missing file.
+        if any(os.sep in p for p in path_parts):
+            raise IOError(errno.ENOENT, os.strerror(errno.ENOENT))
+
+        # Look for a drive component. If one is present, store it separately
+        # so that a directory separator can correctly be added to the real
+        # path, and remove any empty path parts between the drive and the path.
+        # Assume that a part ending with : or | (legacy) is a drive.
+        if path_parts and (path_parts[0].endswith("|") or path_parts[0].endswith(":")):
+            path_drive = path_parts.pop(0)
+            if path_drive.endswith("|"):
+                path_drive = path_drive[:-1] + ":"
+
+            while path_parts and not path_parts[0]:
+                path_parts.pop(0)
+        else:
+            path_drive = ""
+
+        # Try to put the path back together
+        # Join the drive back in, and stick os.sep in front of the path to
+        # make it absolute.
+        path = path_drive + os.sep + os.path.join(*path_parts)
+
+        # Check if the drive assumptions above were correct. If path_drive
+        # is set, and os.path.splitdrive does not return a drive, it wasn't
+        # reall a drive. Put the path together again treating path_drive
+        # as a normal path component.
+        if path_drive and not os.path.splitdrive(path):
+            path = os.sep + os.path.join(path_drive, *path_parts)
+
+        return abspath(path)
+
     def onLoopInit(self):
         self.__event = asyncio.Event()
         self.__lock = threading.Lock()
 
-        # Split the path on / (the URL directory separator) and decode any
-        # % escapes in the parts
-        pathParts = [unquote(p) for p in self.url.path.split("/")]
-
-        # Strip out the leading empty parts created from the leading /'s
-        while pathParts and not pathParts[0]:
-            pathParts.pop(0)
-
-        # If os.sep is in any of the parts, someone fed us some shenanigans.
-        # Treat is like a missing file.
-        if any(os.sep in p for p in pathParts):
-            raise IOError(errno.ENOENT, os.strerror(errno.ENOENT))
-
-        path = os.sep.join(pathParts)
-        self.fileName = abspath(path)
-
         obs = Observer()
-        obs.schedule(self, self.fileName)
+        obs.schedule(self, self.__fileName())
         obs.start()
         logging.debug(obs._watches)
 
