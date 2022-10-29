@@ -473,7 +473,7 @@ def run(main, *, debug=None):
         try:
             _cancel_all_tasks(loop)
             loop.run_until_complete(loop.shutdown_asyncgens())
-            if sys.version_info.micro >= 9:
+            if sys.version_info.minor >= 9:
                 loop.run_until_complete(loop.shutdown_default_executor())
         finally:
             events.set_event_loop(None)
@@ -506,7 +506,7 @@ def _cancel_all_tasks(loop):
 
 
 if __name__ == "__main__":
-    if sys.version_info.micro < 7:
+    if sys.version_info.minor < 7:
         run(main())
     else:
         asyncio.run(main())
