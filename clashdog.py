@@ -483,7 +483,10 @@ def run(main, *, debug=None):
 def _cancel_all_tasks(loop):
     from asyncio import tasks
 
-    to_cancel = tasks.all_tasks(loop)
+    if sys.version_info.minor < 9:
+        to_cancel = {x for x in tasks.Task.all_tasks(loop) if not x.done()}
+    else:
+        to_cancel = tasks.all_tasks(loop)
     if not to_cancel:
         return
 
