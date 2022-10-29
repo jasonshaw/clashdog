@@ -205,14 +205,14 @@ class AddRules(ast.NodeTransformer):
     @staticmethod
     def __toAstLiterals(data):
         if isinstance(data, list):
-            return AddRules.__toAstList(data, ast.Load)
+            return AddRules.__toAstList(data)
         if isinstance(data, dict):
             return AddRules.__toAstDict(data)
         return ast.Constant(data)
 
     @staticmethod
     def __toAstList(data):
-        return ast.List([AddRules.__toAstLiterals(x) for x in data])
+        return ast.List([AddRules.__toAstLiterals(x) for x in data], ast.Load)
 
     @staticmethod
     def __toAstDict(data):
