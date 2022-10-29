@@ -290,8 +290,7 @@ class AddRules(ast.NodeTransformer):
 
     def visit_Module(self, node):
         node.body.insert(
-            0,
-            ast.Assign([ast.Name("_RULES", ast.Store)], AddRules.__toAstRules(), None),
+            0, ast.Assign([ast.Name("_RULES", ast.Store)], AddRules.__toAstRules())
         )
         return node
 
@@ -304,7 +303,7 @@ class RewriteRules(ast.NodeTransformer):
             and node.targets[0].id == "RULES"
         ):
             return node
-        return ast.Assign(node.targets[:1], node.targets[1], node.type_comment)
+        return ast.Assign(node.targets[:1], node.targets[1])
 
 
 async def main():
