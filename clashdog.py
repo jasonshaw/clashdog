@@ -112,7 +112,7 @@ class BaseInsert:
 
 class HTTPInsert(BaseInsert):
     def __fileName(self):
-        return re.findall('filename="(.+)"', self.headers["Content-Disposition"])[0]
+        return re.findall('filename="(.+)"', self.headers["content-disposition"])[0]
 
     def __interval(self):
         return int(self.headers["profile-update-interval"])
