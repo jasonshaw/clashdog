@@ -225,7 +225,7 @@ class AddRules(ast.NodeTransformer):
 
     @classmethod
     def __toAstRules(cls):
-        return cls.__toAstLiterals(cls._Rules)
+        return cls.__toAstLiterals([y for x in cls._Rules if x for y in x])
 
     def __init__(self, insert):
         super().__init__()
