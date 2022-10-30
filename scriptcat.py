@@ -472,16 +472,7 @@ def ruleAdapter(pp, rule):
 
 
 def setMetadata(ctx, metadata, k, v, *args, **kwargs):
-    args = list(args)
-    if not args:
-        pass
-    elif args[0] == nil:
-        args = args[1:]
-    elif not args[0] or type(v) != "string":
-        args[0] = metadata
-    else:
-        args[0] = metadata[args[0]]
-
+    args = (metadata[x] if x in metadata else x for x in args) if args else metadata
     if type(v) == "function":
         v = v(*args, **kwargs)
 
@@ -529,7 +520,7 @@ def match(ctx, metadata):
 
         if not processFound and "PROCESS" in rule[1]:
             processFound = True
-            setMetadata(ctx, metadata, "ProcessPath", ctx.resolve_process_name, "")
+            setMetadata(ctx, metadata, "ProcessPath", ctx.resolve_process_name)
 
         if ruleMatch(metadata, rule):
             adapter, ok = ruleAdapter(pp, rule)
