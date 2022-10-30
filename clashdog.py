@@ -183,17 +183,19 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
         self.__event = asyncio.Event()
         self.__lock = threading.Lock()
 
+        self.fileName = self.__fileName()
+
         obs = Observer()
-        obs.schedule(self, self.__fileName())
+        obs.schedule(self, self.fileName)
         obs.start()
         logging.debug(obs._watches)
 
     async def wait(self):
+        logging.info(f"{self.fileName} will be updated after the next revision")
         await self.__event.wait()
 
-        self.__lock.acquire()
-        self.__event.clear()
-        self.__lock.release()
+        with self.__lock:
+            self.__event.clear()
 
     def on_modified(self, event):
         logging.debug(event)
@@ -433,7 +435,7 @@ Clash subscription updater, supports the separation of rules and configuration f
         metavar="config.yaml",
     )
     parser.add_argument(
-        "-v", "--version", action="version", version="1.0.3-alpha+20221031"
+        "-v", "--version", action="version", version="1.0.4-alpha+20221031"
     )
 
     args = parser.parse_args()
