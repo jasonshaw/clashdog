@@ -189,9 +189,11 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
         logging.debug(obs._watches)
 
     async def wait(self):
-        with self.__lock:
-            await self.__event.wait()
-            self.__event.clear()
+        await self.__event.wait()
+
+        self.__lock.acquire()
+        self.__event.clear()
+        self.__lock.release()
 
     def on_modified(self, event):
         logging.debug(event)
