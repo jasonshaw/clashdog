@@ -194,6 +194,9 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
         logging.info(f"{self.fileName} will be updated after the next revision")
         await self.__event.wait()
 
+        # 执行顺序无所谓，只要保证线程安全即可
+        # 在 clear 后每次 set 都会放行
+        # 在 clear 前多次 set 也只放行一次
         with self.__lock:
             self.__event.clear()
 
