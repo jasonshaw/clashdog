@@ -431,7 +431,7 @@ Clash subscription updater, supports the separation of rules and configuration f
         metavar="config.yaml",
     )
     parser.add_argument(
-        "-v", "--version", action="version", version="1.0.3-alpha+20221029"
+        "-v", "--version", action="version", version="1.0.3-alpha+20221031"
     )
 
     args = parser.parse_args()
