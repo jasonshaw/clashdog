@@ -1,16 +1,19 @@
 from scriptcat import ParseCIDR
 
 # 标准库
-import threading
-import asyncio
-import logging
+
 import argparse
-import sys
+import ast
+import asyncio
+import errno
+import logging
 import os
 import re
-import ast
-import errno
+import sys
+import sysconfig
+import threading
 
+from asyncio import events, coroutines, tasks
 from urllib.parse import urlparse, urlunparse, unquote
 from pathlib import Path
 
@@ -24,6 +27,10 @@ from requests.adapters import HTTPAdapter
 from requests_file import FileAdapter
 from urllib3.util.retry import Retry
 from watchdog.observers import Observer
+
+if os.name == "nt" and sysconfig.get_platform().startswith("mingw"):
+    from watchdog.observers.polling import PollingObserver as Observer
+
 from watchdog.events import FileSystemEventHandler
 
 
@@ -183,15 +190,12 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
         self.__event = asyncio.Event()
         self.__lock = threading.Lock()
 
-        self.fileName = self.__fileName()
-
         obs = Observer()
-        obs.schedule(self, self.fileName)
+        obs.schedule(self, self.__fileName())
         obs.start()
         logging.debug(obs._watches)
 
     async def wait(self):
-        logging.info(f"{self.fileName} will be updated after the next revision")
         await self.__event.wait()
 
         # 执行顺序无所谓，只要保证线程安全即可
@@ -488,8 +492,6 @@ Clash subscription updater, supports the separation of rules and configuration f
 
 
 def run(main, *, debug=None):
-    from asyncio import events, coroutines
-
     if events._get_running_loop() is not None:
         raise RuntimeError("asyncio.run() cannot be called from a running event loop")
 
@@ -513,8 +515,6 @@ def run(main, *, debug=None):
 
 
 def _cancel_all_tasks(loop):
-    from asyncio import tasks
-
     to_cancel = (
         tasks.all_tasks(loop)
         if py37
