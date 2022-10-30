@@ -499,8 +499,7 @@ def run(main, *, debug=None):
         try:
             _cancel_all_tasks(loop)
             loop.run_until_complete(loop.shutdown_asyncgens())
-            if sys.version_info.minor >= 9:
-                loop.run_until_complete(loop.shutdown_default_executor())
+            py39 and loop.run_until_complete(loop.shutdown_default_executor())
         finally:
             events.set_event_loop(None)
             loop.close()
@@ -509,10 +508,11 @@ def run(main, *, debug=None):
 def _cancel_all_tasks(loop):
     from asyncio import tasks
 
-    if sys.version_info.minor < 7:
-        to_cancel = {x for x in tasks.Task.all_tasks(loop) if not x.done()}
-    else:
-        to_cancel = tasks.all_tasks(loop)
+    to_cancel = (
+        tasks.all_tasks(loop)
+        if py37
+        else {x for x in tasks.Task.all_tasks(loop) if not x.done()}
+    )
     if not to_cancel:
         return
 
@@ -534,8 +534,8 @@ def _cancel_all_tasks(loop):
             )
 
 
+py37 = sys.version_info >= (3, 7)
+py39 = sys.version_info >= (3, 9)
+
 if __name__ == "__main__":
-    if sys.version_info.minor < 7:
-        run(main())
-    else:
-        asyncio.run(main())
+    (asyncio.run if py37 else run)(main())

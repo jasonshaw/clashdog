@@ -445,7 +445,7 @@ def ruleMatch(metadata, rule):
         if ip == nil:
             return False
 
-        if EqualFold(rule[1], "LAN"):
+        if EqualFold(rule[2], "LAN"):
             return IsPrivate(ip)
         return EqualFold(metadata["IsoCode"], rule[2])
 
@@ -472,8 +472,8 @@ def ruleAdapter(pp, rule):
 
 
 def setMetadata(ctx, metadata, k, v, *args, **kwargs):
-    args = (metadata[x] if x in metadata else x for x in args) if args else metadata
-    if type(v) == "function":
+    args = [metadata[x] if x in metadata else x for x in args] if args else metadata
+    if "function" in type(v):  # 也可能是 builtin_function_or_method
         v = v(*args, **kwargs)
 
     if k == v:
@@ -523,7 +523,7 @@ def match(ctx, metadata):
             setMetadata(ctx, metadata, "ProcessPath", ctx.resolve_process_name)
 
         if ruleMatch(metadata, rule):
-            adapter, ok = ruleAdapter(pp, rule)
+            adapter, ok = ruleAdapter(pp, rule).values()
             if not ok:
                 continue
             if EqualFold(metadata["network"], "udp") and not adapter["SupportUDP"]:
