@@ -108,10 +108,10 @@ class BaseInsert:
             # 重载配置
             logging.info("Reload configuration")
             # 本地速度快不需要异步
-            # clash本身支持软链接
+            # clash 本身就支持软链接，但必须是完整路径
             put(
                 f"http://127.0.0.1:{self.port}/configs?force=true",
-                json={"path": self.configPath},
+                json={"path": os.path.abspath(self.configPath)},
             )
 
             await self.wait()
