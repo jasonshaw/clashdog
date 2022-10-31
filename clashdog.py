@@ -79,7 +79,7 @@ class BaseInsert:
             stream.write(astor.to_source(script))
             # stream.write(f"\n'''\n{astor.dump_tree(script)}\n'''\n")
 
-    async def wait(self):
+    async def next(self):
         pass
 
     async def loop(self, currentInsert, argv):
@@ -114,7 +114,7 @@ class BaseInsert:
                 json={"path": os.path.abspath(self.configPath)},
             )
 
-            await self.wait()
+            await self.next()
 
 
 class HTTPInsert(BaseInsert):
@@ -138,12 +138,12 @@ class HTTPInsert(BaseInsert):
 
         logging.info(f"saved file to {abspath(self.fileName)}")
 
-    async def wait(self):
+    async def next(self):
         logging.info(f"{self.fileName} next update in {self.interval} hours")
         await asyncio.sleep(self.interval * 3600)
 
 
-class FileInsert(BaseInsert, FileSystemEventHandler):
+class FileInsert(BaseInsert, FileSystemEventHandler, asyncio.Event):
     def __fileName(self):
         # Split the path on / (the URL directory separator) and decode any
         # % escapes in the parts
@@ -187,27 +187,18 @@ class FileInsert(BaseInsert, FileSystemEventHandler):
         return abspath(path)
 
     def onLoopInit(self):
-        self.__event = asyncio.Event()
-        self.__lock = threading.Lock()
-
         obs = Observer()
         obs.schedule(self, self.__fileName())
         obs.start()
         logging.debug(obs._watches)
 
-    async def wait(self):
-        await self.__event.wait()
-
-        # 执行顺序无所谓，只要保证线程安全即可
-        # 在 clear 后每次 set 都会放行
-        # 在 clear 前多次 set 也只放行一次
-        with self.__lock:
-            self.__event.clear()
+    async def next(self):
+        await self.wait()
+        self.clear()
 
     def on_modified(self, event):
         logging.debug(event)
-        with self.__lock:
-            self.__event.set()
+        self._loop.call_soon_threadsafe(self.set)
 
 
 class AddRules(ast.NodeTransformer):
