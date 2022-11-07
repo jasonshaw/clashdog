@@ -109,10 +109,12 @@ class BaseInsert:
             logging.info("reload configuration")
             # 本地速度快不需要异步
             # clash 本身就支持软链接，但必须是完整路径
-            put(
+            resp = put(
                 f"http://{self.extCtrl}/configs?force=true",
                 json={"path": self.configPath},
             )
+            # 失败应当终止程序
+            assert resp.ok, f"{resp.text} {self.configPath}"
 
             await self.next()
 
@@ -354,7 +356,8 @@ def fileRotate(fileName, max):
 
 def abspath(path):
     path = os.path.abspath(path)
-    return os.readlink(path) if os.path.islink(path) else path
+    # 软链接也可以是相对路径
+    return abspath(os.readlink(path)) if os.path.islink(path) else path
 
 
 def get(url):
