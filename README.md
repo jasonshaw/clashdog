@@ -31,7 +31,7 @@ Clash订阅地址应遵循[URL Scheme](https://docs.cfw.lbyczf.com/contents/urls
 ```yaml
 # The clashdog will reload the configuration using the RESTful API
 external-controller: :9090
-mode: Script
+mode: script
 
 # https://github.com/Dreamacro/clash/releases/tag/premium
 script:

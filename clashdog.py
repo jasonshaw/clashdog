@@ -9,9 +9,9 @@ import errno
 import logging
 import os
 import re
+import socket
 import sys
 import sysconfig
-import threading
 
 from asyncio import events, coroutines, tasks
 from urllib.parse import urlparse, urlunparse, unquote
@@ -42,7 +42,7 @@ class BaseInsert:
         self.policies = {"DIRECT": False, "REJECT": False}  # policy: disable-udp
 
         # 读取配置
-        with open(abspath(self.configPath)) as stream:
+        with open(self.configPath) as stream:
             config = yaml.load(stream, Loader=yaml.Loader)
 
             for p in config.get("proxies", []):
@@ -53,8 +53,8 @@ class BaseInsert:
                 p = DictObj(p)
                 self.policies[p.name] = p.disable_udp if "disable-udp" in p else False
 
-            host = config.get("external-controller", f":{self.port}")
-            self.port = urlparse(f"http://{host}").port
+            addr = urlparse(f"http://{config.get('external-controller', self.extCtrl)}")
+            self.extCtrl = f"{socket.getfqdn(addr.hostname or '')}:{addr.port}"
 
         logging.debug(self.policies)
 
@@ -87,10 +87,10 @@ class BaseInsert:
         self.url = currentInsert.url
 
         self.defaultPolicy = argv.default_policy
-        self.rotateFileName = argv.filename
+        self.rotateFileName = abspath(argv.filename)
         self.fileMaxRotate = argv.file_max_rotate
-        self.port = argv.port
-        self.configPath = argv.config_file
+        self.extCtrl = f"0.0.0.0:{argv.port}"
+        self.configPath = abspath(argv.config_file)
 
         # 计算实际下标
         index = argv.insert.index(currentInsert)
@@ -106,12 +106,12 @@ class BaseInsert:
             await self.save()
 
             # 重载配置
-            logging.info("Reload configuration")
+            logging.info("reload configuration")
             # 本地速度快不需要异步
             # clash 本身就支持软链接，但必须是完整路径
             put(
-                f"http://127.0.0.1:{self.port}/configs?force=true",
-                json={"path": os.path.abspath(self.configPath)},
+                f"http://{self.extCtrl}/configs?force=true",
+                json={"path": self.configPath},
             )
 
             await self.next()
@@ -119,7 +119,10 @@ class BaseInsert:
 
 class HTTPInsert(BaseInsert):
     def __fileName(self):
-        return re.findall('filename="(.+)"', self.headers["content-disposition"])[0]
+        # 忽略大小写
+        return re.findall(
+            'filename="(.+)"', self.headers["content-disposition"].lower()
+        )[0]
 
     def __interval(self):
         return int(self.headers["profile-update-interval"])
@@ -433,7 +436,7 @@ Clash subscription updater, supports the separation of rules and configuration f
         metavar="config.yaml",
     )
     parser.add_argument(
-        "-v", "--version", action="version", version="1.0.4-alpha+20221031"
+        "-v", "--version", action="version", version="1.0.5-alpha+20221107"
     )
 
     args = parser.parse_args()
