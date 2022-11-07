@@ -463,12 +463,10 @@ def ruleMatch(metadata, rule):
 
 
 # return: Proxy
-def ruleAdapter(pp, rule):
-    policy = rule[2] if rule[1] == "MATCH" else rule[3]
-    return {
-        "ProxyAdapter": {"Name": policy, "SupportUDP": "disable-udp" not in rule[4]},
-        "Alive": pp[policy],
-    }
+def ruleAdapter(proxies, rule):
+    proxy = proxies[rule[2] if rule[1] == "MATCH" else rule[3]]
+    proxy["ProxyAdapter"]["SupportUDP"] = "disable-udp" not in rule[4]
+    return proxy
 
 
 def setMetadata(ctx, metadata, k, v, *args, **kwargs):
@@ -506,7 +504,14 @@ def shouldResolveIP(metadata, rule):
 #
 # see: https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
 def match(ctx, metadata):
-    pp = {p.name: p.alive for p in ctx.proxy_providers["default"]}
+    proxies = {
+        p.name: {
+            "ProxyAdapter": {"Name": p.name},
+            "history": [{"Time": time.now(), "Delay": p.delay}],
+            "alive": p.alive,
+        }
+        for p in ctx.proxy_providers["default"]
+    }
     setMetadata(ctx, metadata, "dst_ip", "dst_ip")
     setMetadata(ctx, metadata, "src_ip", "src_ip")
 
@@ -523,7 +528,7 @@ def match(ctx, metadata):
             setMetadata(ctx, metadata, "ProcessPath", ctx.resolve_process_name)
 
         if ruleMatch(metadata, rule):
-            adapter, ok = ruleAdapter(pp, rule).values()
+            adapter, ok = ruleAdapter(proxies, rule).values()
             if not ok:
                 continue
             if EqualFold(metadata["network"], "udp") and not adapter["SupportUDP"]:
