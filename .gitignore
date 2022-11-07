@@ -173,6 +173,6 @@ cython_debug/
 *.vsix
 
 # 测试文件
-Hitun
+hitun
 config.yaml
-rules.star*
+rules.*
