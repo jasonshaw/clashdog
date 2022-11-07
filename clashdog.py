@@ -1,7 +1,6 @@
 from scriptcat import ParseCIDR
 
 # 标准库
-
 import argparse
 import ast
 import asyncio
