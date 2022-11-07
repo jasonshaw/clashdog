@@ -507,7 +507,7 @@ def match(ctx, metadata):
     proxies = {
         p.name: {
             "ProxyAdapter": {"Name": p.name},
-            "history": [{"Time": time.now(), "Delay": p.delay}],
+            "history": {"Time": time.now(), "Delay": p.delay},
             "alive": p.alive,
         }
         for p in ctx.proxy_providers["default"]
@@ -528,7 +528,7 @@ def match(ctx, metadata):
             setMetadata(ctx, metadata, "ProcessPath", ctx.resolve_process_name)
 
         if ruleMatch(metadata, rule):
-            adapter, ok = ruleAdapter(proxies, rule).values()
+            adapter, ok, _ = ruleAdapter(proxies, rule).values()
             if not ok:
                 continue
             if EqualFold(metadata["network"], "udp") and not adapter["SupportUDP"]:
