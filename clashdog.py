@@ -253,8 +253,9 @@ class AddRules(ast.NodeTransformer):
             data = [
                 x
                 for x in data
-                if ("geoip" in self.filter and "GEOIP" not in x)
-                or ("match" in self.filter and "MATCH" not in x)
+                if True
+                and ("geoip" in self.filter and "GEOIP" not in x)
+                and ("match" in self.filter and "MATCH" not in x)
             ]
 
         # 解析规则
