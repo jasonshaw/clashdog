@@ -1,27 +1,124 @@
 byte = lambda x=0: int(x) & 0xFF
 uint = lambda x=0: int(x) & 0xFFFFFFFF
 nil = None
+
+
+# IsPathSeparator reports whether c is a directory separator character.
+#
+# See: https://github.com/golang/go/blob/master/src/os/path_windows.go
+def IsPathSeparator(c):
+    # NOTE: Windows accepts / as path separator.
+    return c == "\\" or c == "/"
+
+
+# EqualFold reports whether s and t, interpreted as UTF-8 strings,
+# are equal under simple Unicode case-folding, which is a more general
+# form of case-insensitivity.
+#
+# See: https://github.com/golang/go/blob/master/src/strings/strings.go
+def EqualFold(s, t):
+    # TODO? Maybe it will work.
+    return s.lower() == t.lower()
+
+
+###############################################################
+# See: https://github.com/golang/go/blob/master/src/path/filepath/path_windows.go
+###############################################################
+isSlash = IsPathSeparator
+
+
+def toUpper(c):
+    if "a" <= c and c <= "z":
+        return chr(ord(c) - ord("a") + ord("A"))
+    return c
+
+
+# volumeNameLen returns length of the leading volume name on Windows.
+# It returns 0 elsewhere.
+#
+# See: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats
+def volumeNameLen(path):
+    if len(path) < 2:
+        return 0
+    # with drive letter
+    c = path[0]
+    if path[1] == ":" and ("a" <= c and c <= "z" or "A" <= c and c <= "Z"):
+        return 2
+    # UNC and DOS device paths start with two slashes.
+    if not isSlash(path[0]) or not isSlash(path[1]):
+        return 0
+    rest = path[2:]
+    p1, rest, _ = cutPath(rest)
+    p2, rest, ok = cutPath(rest)
+    if not ok:
+        return len(path)
+    if p1 != "." and p1 != "?":
+        # This is a UNC path: \\${HOST}\${SHARE}\
+        return len(path) - len(rest) - 1
+    # This is a DOS device path.
+    if (
+        len(p2) == 3
+        and toUpper(p2[0]) == "U"
+        and toUpper(p2[1]) == "N"
+        and toUpper(p2[2]) == "C"
+    ):
+        # This is a DOS device path that links to a UNC: \\.\UNC\${HOST}\${SHARE}\
+        _, rest, _ = cutPath(rest)  # host
+        _, rest, ok = cutPath(rest)  # share
+        if not ok:
+            return len(path)
+    return len(path) - len(rest) - 1
+
+
+# cutPath slices path around the first path separator.
+def cutPath(path):
+    for i in range(len(path)):
+        if isSlash(path[i]):
+            return path[:i], path[i + 1 :], True
+    return path, "", False
+
+
+###############################################################
+# Package filepath implements utility routines for manipulating filename paths
+# in a way compatible with the target operating system-defined file paths.
+#
+# The filepath package uses either forward slashes or backslashes,
+# depending on the operating system. To process paths such as URLs
+# that always use forward slashes regardless of the operating
+# system, see the [path] package.
+#
+# See: https://github.com/golang/go/blob/master/src/path/filepath/path.go
+###############################################################
 Separator = "/"
+
+
+# FromSlash returns the result of replacing each slash ('/') character
+# in path with a separator character. Multiple slashes are replaced
+# by multiple separators.
+def FromSlash(path):
+    if "\\" not in path:
+        return path
+    return path.replace(Separator, "\\")
 
 
 # Base returns the last element of path.
 # Trailing path separators are removed before extracting the last element.
 # If the path is empty, Base returns ".".
 # If the path consists entirely of separators, Base returns a single separator.
-#
-# https://github.com/golang/go/blob/master/src/path/filepath/path.go
 def Base(path):
     if path == "":
         return "."
     # Strip trailing slashes.
-    for ignore in range(len(path)):
-        if not (len(path) > 0 and Separator == path[len(path) - 1]):
+    for _ in range(len(path)):
+        if not (len(path) > 0 and IsPathSeparator(path[len(path) - 1])):
             break
         path = path[0 : len(path) - 1]
+    # Throw away volume name
+    path = path[len(VolumeName(path)) :]
     # Find the last element
     i = len(path) - 1
-    for ignore in range(len(path)):
-        if not (i >= 0 and Separator != path[i]):
+    for _ in range(len(path)):
+        if not (i >= 0 and not IsPathSeparator(path[i])):
             break
         i -= 1
     if i >= 0:
@@ -32,21 +129,19 @@ def Base(path):
     return path
 
 
-# EqualFold reports whether s and t, interpreted as UTF-8 strings,
-# are equal under simple Unicode case-folding, which is a more general
-# form of case-insensitivity.
-#
-# https://github.com/golang/go/blob/master/src/strings/strings.go
-def EqualFold(s, t):
-    # TODO? Maybe it will work.
-    return s.lower() == t.lower()
+# VolumeName returns leading volume name.
+# Given "C:\foo\bar" it returns "C:" on Windows.
+# Given "\\host\share\foo" it returns "\\host\share".
+# On other platforms it returns "".
+def VolumeName(path):
+    return FromSlash(path[: volumeNameLen(path)])
 
 
 ###############################################################
 # Simple file i/o and string manipulation, to avoid
 # depending on strconv and bufio and strings.
 #
-# https://github.com/golang/go/blob/master/src/net/parse.go
+# See: https://github.com/golang/go/blob/master/src/net/parse.go
 ###############################################################
 # Bigger than we need, not too big to worry about overflow
 big = 0xFFFFFF
@@ -100,7 +195,36 @@ def xtoi(s):
 # This library accepts either size of byte slice but always
 # returns 16-byte addresses.
 #
-# https://github.com/golang/go/blob/master/src/net/ip.go
+# See: https://github.com/golang/go/blob/master/src/net/ip.go
+#
+# // An IP is a single IP address, a slice of bytes.
+# // Functions in this package accept either 4-byte (IPv4)
+# // or 16-byte (IPv6) slices as input.
+# //
+# // Note that in this documentation, referring to an
+# // IP address as an IPv4 address or an IPv6 address
+# // is a semantic property of the address, not just the
+# // length of the byte slice: a 16-byte slice can still
+# // be an IPv4 address.
+# type IP []byte
+#
+# // An IPMask is a bitmask that can be used to manipulate
+# // IP addresses for IP addressing and routing.
+# //
+# // See type IPNet and func ParseCIDR for details.
+# type IPMask []byte
+#
+# // An IPNet represents an IP network.
+# type IPNet struct {
+#   IP   IP     // network number
+#   Mask IPMask // network mask
+# }
+#
+# Starlark is intended to be simple. There are no user-defined types,
+# no inheritance, no reflection, no exceptions, no explicit memory management.
+# Execution is finite. The language does not allow recursion or unbounded loops.
+#
+# See: https://github.com/bazelbuild/starlark/blob/master/spec.md
 ###############################################################
 # IP address lengths (bytes).
 IPv4len = 4
@@ -391,41 +515,19 @@ def ParseCIDR(s):
 ###############################################################
 # 规则匹配区
 #
-# // An IP is a single IP address, a slice of bytes.
-# // Functions in this package accept either 4-byte (IPv4)
-# // or 16-byte (IPv6) slices as input.
-# //
-# // Note that in this documentation, referring to an
-# // IP address as an IPv4 address or an IPv6 address
-# // is a semantic property of the address, not just the
-# // length of the byte slice: a 16-byte slice can still
-# // be an IPv4 address.
-# type IP []byte
-#
-# // An IPMask is a bitmask that can be used to manipulate
-# // IP addresses for IP addressing and routing.
-# //
-# // See type IPNet and func ParseCIDR for details.
-# type IPMask []byte
-#
-# // An IPNet represents an IP network.
-# type IPNet struct {
-# 	IP   IP     // network number
-# 	Mask IPMask // network mask
-# }
-#
-# 因为 starlark 不支持自定义类型，所以需要收录上面这些定义，以便后续理解。
-###############################################################
-# rule[1:] = ["Type", "Matcher", "Policy", "Option"]
-# rule[1:] = ["MATCH", "Policy", "Policy", "Option"]
-#
-# rule[0] = "original_rule_string"
-# rule[2] = IPNet if "IP-CIDR" in rule[1] else string
+# rule = [
+#   "original_rule_string",
+#   "Type",
+#   IPNet if "IP-CIDR" in rule[1] else "Matcher",
+#   "Policy",
+#   "Option"
+# ]
 #
 # Option 中新增 disable-udp 用 `;` 分割，与 Proxy Groups 中的含义一致，手动添加将忽略配置文件中的设置。
 # 由于配置文件是静态的，外加脚本缺少相关接口，因此无法考虑 UDP 传递问题。
 # 无论是 Proxies 的 udp 还是 Proxy Groups 的 disable-udp 它们的默认值都是 false。
 # rule[4] = "no-resolve;disable-udp"
+###############################################################
 RULES = _RULES = []
 
 
@@ -503,7 +605,7 @@ def shouldResolveIP(metadata, rule):
 # reimplement ctx.rule_providers.match(metadata) => boolean
 # return: "Policy", "original_rule_string"
 #
-# https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
+# See: https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
 def match(ctx, metadata):
     proxies = {
         p.name: {
@@ -539,9 +641,8 @@ def match(ctx, metadata):
     return "DIRECT", nil
 
 
-# https://github.com/Dreamacro/clash/wiki/Premium:-Scripting
-# https://lancellc.gitbook.io/clash/clash-config-file/script
-# https://github.com/bazelbuild/starlark/blob/master/spec.md
+# See: https://github.com/Dreamacro/clash/wiki/Premium:-Scripting
+# See: https://lancellc.gitbook.io/clash/clash-config-file/script
 def main(ctx, metadata):
     _, rule = match(ctx, metadata)
     if rule != nil:
