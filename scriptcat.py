@@ -470,15 +470,15 @@ def ruleAdapter(proxies, rule):
     return proxy
 
 
-def setMetadata(ctx, metadata, k, v, *args, **kwargs):
-    args = [metadata[x] if x in metadata else x for x in args] if args else metadata
+def setMetadata(ctx, metadata, k, v=nil, *args, **kwargs):
     if "function" in type(v):  # 也可能是 builtin_function_or_method
+        args = [metadata[x] if x in metadata else x for x in args] if args else metadata
         v = v(*args, **kwargs)
 
-    if k == v:
-        v = metadata[k]
-    else:
+    if v != nil:
         metadata[k] = v
+    else:
+        v = metadata[k]
 
     if False:
         pass
@@ -513,8 +513,8 @@ def match(ctx, metadata):
         }
         for p in ctx.proxy_providers["default"]
     }
-    setMetadata(ctx, metadata, "dst_ip", "dst_ip")
-    setMetadata(ctx, metadata, "src_ip", "src_ip")
+    setMetadata(ctx, metadata, "dst_ip")
+    setMetadata(ctx, metadata, "src_ip")
 
     resolved = False
     processFound = False
@@ -539,7 +539,7 @@ def match(ctx, metadata):
     return "DIRECT", nil
 
 
-# https://github.com/Dreamacro/clash/wiki/premium-core-features
+# https://github.com/Dreamacro/clash/wiki/Premium:-Scripting
 # https://lancellc.gitbook.io/clash/clash-config-file/script
 # https://github.com/bazelbuild/starlark/blob/master/spec.md
 def main(ctx, metadata):
