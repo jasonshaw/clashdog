@@ -1,16 +1,15 @@
 byte = lambda x=0: int(x) & 0xFF
 uint = lambda x=0: int(x) & 0xFFFFFFFF
-
 nil = None
-
 Separator = "/"
+
 
 # Base returns the last element of path.
 # Trailing path separators are removed before extracting the last element.
 # If the path is empty, Base returns ".".
 # If the path consists entirely of separators, Base returns a single separator.
 #
-# see: https://github.com/golang/go/blob/master/src/path/filepath/path.go
+# https://github.com/golang/go/blob/master/src/path/filepath/path.go
 def Base(path):
     if path == "":
         return "."
@@ -37,20 +36,21 @@ def Base(path):
 # are equal under simple Unicode case-folding, which is a more general
 # form of case-insensitivity.
 #
-# see: https://github.com/golang/go/blob/master/src/strings/strings.go
+# https://github.com/golang/go/blob/master/src/strings/strings.go
 def EqualFold(s, t):
     # TODO? Maybe it will work.
     return s.lower() == t.lower()
 
 
-"""
-Simple file i/o and string manipulation, to avoid
-depending on strconv and bufio and strings.
-
-see: https://github.com/golang/go/blob/master/src/net/parse.go
-"""
+###############################################################
+# Simple file i/o and string manipulation, to avoid
+# depending on strconv and bufio and strings.
+#
+# https://github.com/golang/go/blob/master/src/net/parse.go
+###############################################################
 # Bigger than we need, not too big to worry about overflow
 big = 0xFFFFFF
+
 
 # Decimal to integer.
 # Returns number, characters consumed, success.
@@ -91,20 +91,21 @@ def xtoi(s):
     return n, i, True
 
 
-"""
-IP address manipulations
-
-IPv4 addresses are 4 bytes; IPv6 addresses are 16 bytes.
-An IPv4 address can be converted to an IPv6 address by
-adding a canonical prefix (10 zeros, 2 0xFFs).
-This library accepts either size of byte slice but always
-returns 16-byte addresses.
-
-see: https://github.com/golang/go/blob/master/src/net/ip.go
-"""
+###############################################################
+# IP address manipulations
+#
+# IPv4 addresses are 4 bytes; IPv6 addresses are 16 bytes.
+# An IPv4 address can be converted to an IPv6 address by
+# adding a canonical prefix (10 zeros, 2 0xFFs).
+# This library accepts either size of byte slice but always
+# returns 16-byte addresses.
+#
+# https://github.com/golang/go/blob/master/src/net/ip.go
+###############################################################
 # IP address lengths (bytes).
 IPv4len = 4
 IPv6len = 16
+
 
 # IPv4 returns the IP address (in 16-byte form) of the
 # IPv4 address a.b.c.d.
@@ -115,6 +116,7 @@ def IPv4(a, b, c, d):
 
 
 v4InV6Prefix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF]
+
 
 # CIDRMask returns an IPMask consisting of 'ones' 1 bits
 # followed by 0s up to a total length of 'bits' bits.
@@ -386,39 +388,38 @@ def ParseCIDR(s):
     return ip, {"IP": Mask(m, ip), "Mask": m}, nil
 
 
-"""
-规则匹配区
-
-// An IP is a single IP address, a slice of bytes.
-// Functions in this package accept either 4-byte (IPv4)
-// or 16-byte (IPv6) slices as input.
-//
-// Note that in this documentation, referring to an
-// IP address as an IPv4 address or an IPv6 address
-// is a semantic property of the address, not just the
-// length of the byte slice: a 16-byte slice can still
-// be an IPv4 address.
-type IP []byte
-
-// An IPMask is a bitmask that can be used to manipulate
-// IP addresses for IP addressing and routing.
-//
-// See type IPNet and func ParseCIDR for details.
-type IPMask []byte
-
-// An IPNet represents an IP network.
-type IPNet struct {
-	IP   IP     // network number
-	Mask IPMask // network mask
-}
-
-因为 starlark 不支持自定义类型，所以需要收录上面这些定义，以便后续理解。
-"""
+###############################################################
+# 规则匹配区
+#
+# // An IP is a single IP address, a slice of bytes.
+# // Functions in this package accept either 4-byte (IPv4)
+# // or 16-byte (IPv6) slices as input.
+# //
+# // Note that in this documentation, referring to an
+# // IP address as an IPv4 address or an IPv6 address
+# // is a semantic property of the address, not just the
+# // length of the byte slice: a 16-byte slice can still
+# // be an IPv4 address.
+# type IP []byte
+#
+# // An IPMask is a bitmask that can be used to manipulate
+# // IP addresses for IP addressing and routing.
+# //
+# // See type IPNet and func ParseCIDR for details.
+# type IPMask []byte
+#
+# // An IPNet represents an IP network.
+# type IPNet struct {
+# 	IP   IP     // network number
+# 	Mask IPMask // network mask
+# }
+#
+# 因为 starlark 不支持自定义类型，所以需要收录上面这些定义，以便后续理解。
+###############################################################
 # rule[1:] = ["Type", "Matcher", "Policy", "Option"]
 # rule[1:] = ["MATCH", "Policy", "Policy", "Option"]
 #
 # rule[0] = "original_rule_string"
-#
 # rule[2] = IPNet if "IP-CIDR" in rule[1] else string
 #
 # Option 中新增 disable-udp 用 `;` 分割，与 Proxy Groups 中的含义一致，手动添加将忽略配置文件中的设置。
@@ -502,7 +503,7 @@ def shouldResolveIP(metadata, rule):
 # reimplement ctx.rule_providers.match(metadata) => boolean
 # return: "Policy", "original_rule_string"
 #
-# see: https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
+# https://github.com/Dreamacro/clash/blob/master/tunnel/tunnel.go
 def match(ctx, metadata):
     proxies = {
         p.name: {
@@ -538,9 +539,9 @@ def match(ctx, metadata):
     return "DIRECT", nil
 
 
-# see: https://github.com/Dreamacro/clash/wiki/premium-core-features
-# see: https://lancellc.gitbook.io/clash/clash-config-file/script
-# see: https://github.com/bazelbuild/starlark/blob/master/spec.md
+# https://github.com/Dreamacro/clash/wiki/premium-core-features
+# https://lancellc.gitbook.io/clash/clash-config-file/script
+# https://github.com/bazelbuild/starlark/blob/master/spec.md
 def main(ctx, metadata):
     _, rule = match(ctx, metadata)
     if rule != nil:
