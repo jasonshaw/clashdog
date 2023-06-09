@@ -59,7 +59,7 @@ def slen(s):
 # https://github.com/golang/go/blob/master/src/unicode/utf8/utf8.go
 ###############################################################
 # Numbers fundamental to the encoding.
-utf8_RuneError = "\uFFFD"  # the "error" Rune or "Unicode replacement character"
+utf8_RuneError = rune("\uFFFD")  # the "error" Rune or "Unicode replacement character"
 utf8_RuneSelf = 0x80  # characters below RuneSelf are represented as themselves in a single byte. fmt: skip
 
 utf8_maskx = 0b00111111
