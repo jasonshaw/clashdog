@@ -18,7 +18,7 @@ uint = int32
 
 
 ###############################################################
-# 剔除starlark-go实现与官方定义有出入的地方
+# 修复starlark-go实现与官方定义有出入的部分
 #
 # https://github.com/bazelbuild/starlark/blob/master/spec.md
 # https://github.com/google/starlark-go/blob/master/doc/spec.md
