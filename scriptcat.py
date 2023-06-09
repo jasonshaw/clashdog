@@ -1,24 +1,228 @@
-byte = lambda x=0: int(x) & 0xFF
-uint = lambda x=0: int(x) & 0xFFFFFFFF
 nil = None
+rune = ord
 
 
-# IsPathSeparator reports whether c is a directory separator character.
+def int8(x=0, maxint=0x7F):
+    signbit = maxint + 1
+    if not -signbit <= x <= maxint:
+        x = (x + signbit) % (2 * signbit) - signbit
+    return x
+
+
+int16 = lambda x=0: int32(x, 0x7FFF)
+int32 = lambda x=0: int32(x, 0x7FFFFFFF)
+int64 = lambda x=0: int32(x, 0x7FFFFFFFFFFFFFFF)
+
+byte = int8
+uint = int32
+
+
+###############################################################
+# 剔除starlark-go实现与官方定义有出入的地方
 #
-# See: https://github.com/golang/go/blob/master/src/os/path_windows.go
-def IsPathSeparator(c):
-    # NOTE: Windows accepts / as path separator.
-    return c == "\\" or c == "/"
+# https://github.com/bazelbuild/starlark/blob/master/spec.md
+# https://github.com/google/starlark-go/blob/master/doc/spec.md
+###############################################################
+elem_ords = lambda s: list(s.elem_ords())
+codepoint_ords = lambda s: list(s.codepoint_ords())
+codepoints = lambda s: list(s.codepoints())
 
 
+# 在starlark-go中，string由bytes实现，因此len在处理string时会引发歧义。
+# 建议替换所有len，当需要bytes时推荐使用string.elem_ords
+def slen(s):
+    if "string" in type(s):
+        return len(codepoint_ords(s))
+    return len(s)
+
+
+###############################################################
+# Package utf8 implements functions and constants to support text encoded in
+# UTF-8. It includes functions to translate between runes and UTF-8 byte sequences.
+# See https://en.wikipedia.org/wiki/UTF-8
+#
+# https://github.com/golang/go/blob/master/src/unicode/utf8/utf8.go
+###############################################################
+# Numbers fundamental to the encoding.
+utf8_RuneError = "\uFFFD"  # the "error" Rune or "Unicode replacement character"
+utf8_RuneSelf = 0x80  # characters below RuneSelf are represented as themselves in a single byte. fmt: skip
+
+utf8_maskx = 0b00111111
+utf8_mask2 = 0b00011111
+utf8_mask3 = 0b00001111
+utf8_mask4 = 0b00000111
+
+# The default lowest and highest continuation byte.
+utf8_locb = 0b10000000
+utf8_hicb = 0b10111111
+
+# These names of these constants are chosen to give nice alignment in the
+# table below. The first nibble is an index into acceptRanges or F for
+# special one-byte cases. The second nibble is the Rune length or the
+# Status for the special one-byte case.
+utf8_xx = 0xF1  # invalid: size 1
+utf8_as = 0xF0  # ASCII: size 1
+utf8_s1 = 0x02  # accept 0, size 2
+utf8_s2 = 0x13  # accept 1, size 3
+utf8_s3 = 0x03  # accept 0, size 3
+utf8_s4 = 0x23  # accept 2, size 3
+utf8_s5 = 0x34  # accept 3, size 4
+utf8_s6 = 0x04  # accept 0, size 4
+utf8_s7 = 0x44  # accept 4, size 4
+
+# fmt: off
+# first is information about the first byte in a UTF-8 sequence.
+utf8_first = [
+    #              1        2        3        4        5        6        7        8        9        A        B        C        D        E        F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x00-0x0F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x10-0x1F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x20-0x2F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x30-0x3F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x40-0x4F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x50-0x5F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x60-0x6F
+    utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as, utf8_as,  # 0x70-0x7F
+    #              1        2        3        4        5        6        7        8        9        A        B        C        D        E        F
+    utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx,  # 0x80-0x8F
+    utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx,  # 0x90-0x9F
+    utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx,  # 0xA0-0xAF
+    utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx,  # 0xB0-0xBF
+    utf8_xx, utf8_xx, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1,  # 0xC0-0xCF
+    utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1, utf8_s1,  # 0xD0-0xDF
+    utf8_s2, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s3, utf8_s4, utf8_s3, utf8_s3,  # 0xE0-0xEF
+    utf8_s5, utf8_s6, utf8_s6, utf8_s6, utf8_s7, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx, utf8_xx,  # 0xF0-0xFF
+]
+# fmt: on
+
+# // acceptRange gives the range of valid values for the second byte in a UTF-8
+# // sequence.
+# type acceptRange struct {
+#   lo uint8 // lowest value for second byte.
+#   hi uint8 // highest value for second byte.
+# }
+
+# // acceptRanges has size 16 to avoid bounds checks in the code that uses it.
+# var acceptRanges = [16]acceptRange{
+#   0: {locb, hicb},
+#   1: {0xA0, hicb},
+#   2: {locb, 0x9F},
+#   3: {0x90, hicb},
+#   4: {locb, 0x8F},
+# }
+utf8_acceptRanges = [
+    [utf8_locb, utf8_hicb],
+    [0xA0, utf8_hicb],
+    [utf8_locb, 0x9F],
+    [0x90, utf8_hicb],
+    [utf8_locb, 0x8F],
+]
+
+
+# DecodeRuneInString is like DecodeRune but its input is a string. If s is
+# empty it returns (RuneError, 0). Otherwise, if the encoding is invalid, it
+# returns (RuneError, 1). Both are impossible results for correct, non-empty
+# UTF-8.
+#
+# An encoding is invalid if it is incorrect UTF-8, encodes a rune that is
+# out of range, or is not the shortest possible UTF-8 encoding for the
+# value. No other validation is performed.
+def utf8_DecodeRuneInString(s):
+    s = list(s.codepoints())
+
+    n = slen(s)
+    if n < 1:
+        return utf8_RuneError, 0
+    s0 = s[0]
+    x = utf8_first[s0]
+    if x >= utf8_as:
+        # The following code simulates an additional check for x == xx and
+        # handling the ASCII and invalid cases accordingly. This mask-and-or
+        # approach prevents an additional branch.
+        mask = rune(x) << 31 >> 31  # Create 0x0000 or 0xFFFF.
+        return rune(s[0]) & ~mask | utf8_RuneError & mask, 1
+    sz = int(x & 7)
+    accept = utf8_acceptRanges[x >> 4]
+    if n < sz:
+        return utf8_RuneError, 1
+    s1 = s[1]
+    if s1 < accept[0] or accept[1] < s1:
+        return utf8_RuneError, 1
+    if sz <= 2:  # <= instead of == to help the compiler eliminate some bounds checks
+        return rune(s0 & utf8_mask2) << 6 | rune(s1 & utf8_maskx), 2
+    s2 = s[2]
+    if s2 < utf8_locb or utf8_hicb < s2:
+        return utf8_RuneError, 1
+    if sz <= 3:
+        return rune(s0 & utf8_mask3) << 12 | rune(s1 & utf8_maskx) << 6 | rune(s2 & utf8_maskx), 3  # fmt: skip
+    s3 = s[3]
+    if s3 < utf8_locb or utf8_hicb < s3:
+        return utf8_RuneError, 1
+    return rune(s0 & utf8_mask4) << 18 | rune(s1 & utf8_maskx) << 12 | rune(s2 & utf8_maskx) << 6 | rune(s3 & utf8_maskx), 4  # fmt: skip
+
+
+###############################################################
+# Package strings implements simple functions to manipulate UTF-8 encoded strings.
+#
+# For information about UTF-8 strings in Go, see https://blog.golang.org/strings.
+#
+# https://github.com/golang/go/blob/master/src/strings/strings.go
+###############################################################
 # EqualFold reports whether s and t, interpreted as UTF-8 strings,
 # are equal under simple Unicode case-folding, which is a more general
 # form of case-insensitivity.
-#
-# See: https://github.com/golang/go/blob/master/src/strings/strings.go
 def EqualFold(s, t):
-    # TODO? Maybe it will work.
-    return s.lower() == t.lower()
+    s = list(s.codepoints())
+    t = list(t.codepoints())
+
+    # ASCII fast path
+    i = 0
+    for _ in range(slen(s) + slen(t)):
+        if not (i < slen(s) and i < slen(t)):
+            break
+        sr = s[i]
+        tr = t[i]
+        if ord(sr) | ord(tr) >= RuneSelf:
+            return hasUnicode(s[i:], t[i:])
+        i += 1
+
+        # Easy case.
+        if tr == sr:
+            continue
+
+        # Make sr < tr to simplify what follows.
+        if tr < sr:
+            tr, sr = sr, tr
+        # ASCII only, sr/tr must be upper/lower case
+        if "A" <= sr and sr <= "Z" and tr == chr(ord(sr) + ord("a") - ord("A")):
+            continue
+        return False
+    # Check if we've exhausted both strings.
+    return len(s) == len(t)
+
+
+def hasUnicode(s, t):
+    for _, sr in enumerate(s):
+        # If t is exhausted the strings are not equal.
+        if len(t) == 0:
+            return False
+
+        # Extract first rune from second string.
+        if t[0] < RuneSelf:
+            tr, t = t[0], t[1:]
+        else:
+            r, size = DecodeRuneInString
+
+    # First string is empty, so check if the second one is also empty.
+    return len(t) == 0
+
+
+###############################################################
+# See: https://github.com/golang/go/blob/master/src/os/path_windows.go
+###############################################################
+# IsPathSeparator reports whether c is a directory separator character.
+def IsPathSeparator(c):
+    # NOTE: Windows accepts / as path separator.
+    return c == "\\" or c == "/"
 
 
 ###############################################################
@@ -223,8 +427,6 @@ def xtoi(s):
 # Starlark is intended to be simple. There are no user-defined types,
 # no inheritance, no reflection, no exceptions, no explicit memory management.
 # Execution is finite. The language does not allow recursion or unbounded loops.
-#
-# See: https://github.com/bazelbuild/starlark/blob/master/spec.md
 ###############################################################
 # IP address lengths (bytes).
 IPv4len = 4
