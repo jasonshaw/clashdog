@@ -1,20 +1,29 @@
 nil = None
-rune = ord
 
 
-def int8(x=0, maxint=0x7F):
+def int8(x, maxint=0x7F):
+    if "string" in type(x):
+        return ord(x)
+
     signbit = maxint + 1
     if not -signbit <= x <= maxint:
         x = (x + signbit) % (2 * signbit) - signbit
     return x
 
 
-int16 = lambda x=0: int32(x, 0x7FFF)
-int32 = lambda x=0: int32(x, 0x7FFFFFFF)
-int64 = lambda x=0: int32(x, 0x7FFFFFFFFFFFFFFF)
+int16 = lambda x: int8(x, 0x7FFF)
+int32 = lambda x: int8(x, 0x7FFFFFFF)
+int64 = lambda x: int8(x, 0x7FFFFFFFFFFFFFFF)
 
-byte = int8
-uint = int32
+uint8 = lambda x, maxint=0xFF: int8(x, maxint >> 1) & maxint
+
+uint16 = lambda x: uint8(x, 0xFFFF)
+uint32 = lambda x: uint8(x, 0xFFFFFFFF)
+uint64 = lambda x: uint8(x, 0xFFFFFFFFFFFFFFFF)
+
+byte = uint8
+uint = uint64
+rune = int32
 
 
 ###############################################################
@@ -32,7 +41,7 @@ codepoints = lambda s: list(s.codepoints())
 # 建议替换所有len，当需要bytes时推荐使用string.elem_ords
 def slen(s):
     if "string" in type(s):
-        return len(codepoint_ords(s))
+        return len(codepoints(s))
     return len(s)
 
 
@@ -110,11 +119,11 @@ utf8_first = [
 #   4: {locb, 0x8F},
 # }
 utf8_acceptRanges = [
-    [utf8_locb, utf8_hicb],
-    [0xA0, utf8_hicb],
-    [utf8_locb, 0x9F],
-    [0x90, utf8_hicb],
-    [utf8_locb, 0x8F],
+    {"lo": utf8_locb, "hi": utf8_hicb},
+    {"lo": 0xA0, "hi": utf8_hicb},
+    {"lo": utf8_locb, "hi": 0x9F},
+    {"lo": 0x90, "hi": utf8_hicb},
+    {"lo": utf8_locb, "hi": 0x8F},
 ]
 
 
@@ -127,7 +136,7 @@ utf8_acceptRanges = [
 # out of range, or is not the shortest possible UTF-8 encoding for the
 # value. No other validation is performed.
 def utf8_DecodeRuneInString(s):
-    s = list(s.codepoints())
+    s = elem_ords(s)
 
     n = slen(s)
     if n < 1:
@@ -153,11 +162,24 @@ def utf8_DecodeRuneInString(s):
     if s2 < utf8_locb or utf8_hicb < s2:
         return utf8_RuneError, 1
     if sz <= 3:
-        return rune(s0 & utf8_mask3) << 12 | rune(s1 & utf8_maskx) << 6 | rune(s2 & utf8_maskx), 3  # fmt: skip
+        return (
+            0
+            | rune(s0 & utf8_mask3) << 12
+            | rune(s1 & utf8_maskx) << 6
+            | rune(s2 & utf8_maskx),
+            3,
+        )
     s3 = s[3]
     if s3 < utf8_locb or utf8_hicb < s3:
         return utf8_RuneError, 1
-    return rune(s0 & utf8_mask4) << 18 | rune(s1 & utf8_maskx) << 12 | rune(s2 & utf8_maskx) << 6 | rune(s3 & utf8_maskx), 4  # fmt: skip
+    return (
+        0
+        | rune(s0 & utf8_mask4) << 18
+        | rune(s1 & utf8_maskx) << 12
+        | rune(s2 & utf8_maskx) << 6
+        | rune(s3 & utf8_maskx),
+        4,
+    )
 
 
 ###############################################################
