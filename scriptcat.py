@@ -1,6 +1,12 @@
 nil = None
 
 
+# 模拟整数溢出
+#
+# a: int8(0x01) << 7 >> 7 == 0x01 << 7 >> 7 == 0x01
+# b: int8(0x01 << 7) >> 7 == 0xFF
+# 由于整数可以任意大，导致a与b结果不同，当左移操作需要溢出时，
+# 必须套用该函数（如b所示）。
 def int8(x, maxint=0x7F):
     if "string" in type(x):
         return ord(x)
@@ -138,7 +144,7 @@ utf8_acceptRanges = [
 def utf8_DecodeRuneInString(s):
     s = elem_ords(s)
 
-    n = slen(s)
+    n = len(s)
     if n < 1:
         return utf8_RuneError, 0
     s0 = s[0]
@@ -147,7 +153,7 @@ def utf8_DecodeRuneInString(s):
         # The following code simulates an additional check for x == xx and
         # handling the ASCII and invalid cases accordingly. This mask-and-or
         # approach prevents an additional branch.
-        mask = rune(x) << 31 >> 31  # Create 0x0000 or 0xFFFF.
+        mask = rune(x << 31) >> 31  # Create 0x0000 or 0xFFFF.
         return rune(s[0]) & ~mask | utf8_RuneError & mask, 1
     sz = int(x & 7)
     accept = utf8_acceptRanges[x >> 4]
