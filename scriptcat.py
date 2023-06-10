@@ -162,7 +162,7 @@ def utf8_DecodeRuneInString(s):
     if n < sz:
         return utf8_RuneError, 1
     s1 = s[1]
-    if s1 < accept[0] or accept[1] < s1:
+    if s1 < accept["lo"] or accept["hi"] < s1:
         return utf8_RuneError, 1
     if sz <= 2:  # <= instead of == to help the compiler eliminate some bounds checks
         return rune(s0 & utf8_mask2) << 6 | rune(s1 & utf8_maskx), 2
