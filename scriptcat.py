@@ -8,10 +8,12 @@ nil = None
 # 由于整数可以任意大，导致a与b结果不同，当左移操作需要溢出时，
 # 必须套用该函数（如b所示）。
 def int8(x, maxint=0x7F):
-    if "string" in type(x):
-        return ord(x)
-
     signbit = maxint + 1
+
+    if "string" in type(x):
+        # (maxint << 1) + 1 == maxint * 2 + 1 == maxint + (maxint + 1)
+        return ord(x) & maxint + signbit
+
     if not -signbit <= x <= maxint:
         x = (x + signbit) % (2 * signbit) - signbit
     return x
