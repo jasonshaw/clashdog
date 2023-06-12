@@ -33,6 +33,9 @@ byte = uint8
 uint = uint64
 rune = int32
 
+# 一个理论上的无限循环长度（最大Unicode代码点数）
+InfiniteLoop = range(0x110000)
+
 
 ###############################################################
 # 修复starlark-go实现与官方定义有出入的部分
@@ -178,6 +181,305 @@ def utf8_DecodeRuneInString(s):
 
 
 ###############################################################
+# Package unicode provides data and functions to test some properties of
+# Unicode code points.
+#
+# https://github.com/golang/go/blob/master/src/unicode/letter.go
+# https://github.com/golang/go/blob/master/src/unicode/tables.go
+###############################################################
+unicode_MaxRune = rune('\U0010FFFF')  # Maximum valid Unicode code point.
+
+
+def ToUpper():
+    pass
+
+
+def ToLower():
+    pass
+
+
+# // caseOrbit is defined in tables.go as []foldPair. Right now all the
+# // entries fit in uint16, so use uint16. If that changes, compilation
+# // will fail (the constants in the composite literal will not fit in uint16)
+# // and the types here can change to uint32.
+# type foldPair struct {
+#   From uint16
+#   To   uint16
+# }
+
+
+# SimpleFold iterates over Unicode code points equivalent under
+# the Unicode-defined simple case folding. Among the code points
+# equivalent to rune (including rune itself), SimpleFold returns the
+# smallest rune > r if one exists, or else the smallest rune >= 0.
+# If r is not a valid Unicode code point, SimpleFold(r) returns r.
+#
+# For example:
+#
+#   SimpleFold('A') = 'a'
+#   SimpleFold('a') = 'A'
+#
+#   SimpleFold('K') = 'k'
+#   SimpleFold('k') = '\u212A' (Kelvin symbol, K)
+#   SimpleFold('\u212A') = 'K'
+#
+#   SimpleFold('1') = '1'
+#
+#   SimpleFold(-2) = -2
+def unicode_SimpleFold(r):
+    if r < 0 or r > unicode_MaxRune:
+        return r
+
+    if int(r) < len(asciiFold):
+        return rune(asciiFold[r])
+
+    # Consult caseOrbit table for special cases.
+    lo = 0
+    hi = len(caseOrbit)
+    for _ in caseOrbit:
+        if not lo < hi:
+            break
+        m = lo + (hi - lo) / 2
+        if rune(caseOrbit[m]["From"] < r):
+            lo = m + 1
+        else:
+            hi = m
+    if lo < len(caseOrbit) and rune(caseOrbit[lo]["From"]) == r:
+        return rune(caseOrbit[lo]["To"])
+
+    # No folding specified. This is a one- or two-element
+    # equivalence class containing rune and ToLower(rune)
+    # and ToUpper(rune) if they are different from rune.
+    l = ToLower(r)
+    if l != r:
+        return l
+    return ToUpper(r)
+
+
+asciiFold = [
+    0x0000,
+    0x0001,
+    0x0002,
+    0x0003,
+    0x0004,
+    0x0005,
+    0x0006,
+    0x0007,
+    0x0008,
+    0x0009,
+    0x000A,
+    0x000B,
+    0x000C,
+    0x000D,
+    0x000E,
+    0x000F,
+    0x0010,
+    0x0011,
+    0x0012,
+    0x0013,
+    0x0014,
+    0x0015,
+    0x0016,
+    0x0017,
+    0x0018,
+    0x0019,
+    0x001A,
+    0x001B,
+    0x001C,
+    0x001D,
+    0x001E,
+    0x001F,
+    0x0020,
+    0x0021,
+    0x0022,
+    0x0023,
+    0x0024,
+    0x0025,
+    0x0026,
+    0x0027,
+    0x0028,
+    0x0029,
+    0x002A,
+    0x002B,
+    0x002C,
+    0x002D,
+    0x002E,
+    0x002F,
+    0x0030,
+    0x0031,
+    0x0032,
+    0x0033,
+    0x0034,
+    0x0035,
+    0x0036,
+    0x0037,
+    0x0038,
+    0x0039,
+    0x003A,
+    0x003B,
+    0x003C,
+    0x003D,
+    0x003E,
+    0x003F,
+    0x0040,
+    0x0061,
+    0x0062,
+    0x0063,
+    0x0064,
+    0x0065,
+    0x0066,
+    0x0067,
+    0x0068,
+    0x0069,
+    0x006A,
+    0x006B,
+    0x006C,
+    0x006D,
+    0x006E,
+    0x006F,
+    0x0070,
+    0x0071,
+    0x0072,
+    0x0073,
+    0x0074,
+    0x0075,
+    0x0076,
+    0x0077,
+    0x0078,
+    0x0079,
+    0x007A,
+    0x005B,
+    0x005C,
+    0x005D,
+    0x005E,
+    0x005F,
+    0x0060,
+    0x0041,
+    0x0042,
+    0x0043,
+    0x0044,
+    0x0045,
+    0x0046,
+    0x0047,
+    0x0048,
+    0x0049,
+    0x004A,
+    0x212A,
+    0x004C,
+    0x004D,
+    0x004E,
+    0x004F,
+    0x0050,
+    0x0051,
+    0x0052,
+    0x017F,
+    0x0054,
+    0x0055,
+    0x0056,
+    0x0057,
+    0x0058,
+    0x0059,
+    0x005A,
+    0x007B,
+    0x007C,
+    0x007D,
+    0x007E,
+    0x007F,
+]
+
+caseOrbit = [
+    {"From": 0x004B, "To": 0x006B},
+    {"From": 0x0053, "To": 0x0073},
+    {"From": 0x006B, "To": 0x212A},
+    {"From": 0x0073, "To": 0x017F},
+    {"From": 0x00B5, "To": 0x039C},
+    {"From": 0x00C5, "To": 0x00E5},
+    {"From": 0x00DF, "To": 0x1E9E},
+    {"From": 0x00E5, "To": 0x212B},
+    {"From": 0x0130, "To": 0x0130},
+    {"From": 0x0131, "To": 0x0131},
+    {"From": 0x017F, "To": 0x0053},
+    {"From": 0x01C4, "To": 0x01C5},
+    {"From": 0x01C5, "To": 0x01C6},
+    {"From": 0x01C6, "To": 0x01C4},
+    {"From": 0x01C7, "To": 0x01C8},
+    {"From": 0x01C8, "To": 0x01C9},
+    {"From": 0x01C9, "To": 0x01C7},
+    {"From": 0x01CA, "To": 0x01CB},
+    {"From": 0x01CB, "To": 0x01CC},
+    {"From": 0x01CC, "To": 0x01CA},
+    {"From": 0x01F1, "To": 0x01F2},
+    {"From": 0x01F2, "To": 0x01F3},
+    {"From": 0x01F3, "To": 0x01F1},
+    {"From": 0x0345, "To": 0x0399},
+    {"From": 0x0392, "To": 0x03B2},
+    {"From": 0x0395, "To": 0x03B5},
+    {"From": 0x0398, "To": 0x03B8},
+    {"From": 0x0399, "To": 0x03B9},
+    {"From": 0x039A, "To": 0x03BA},
+    {"From": 0x039C, "To": 0x03BC},
+    {"From": 0x03A0, "To": 0x03C0},
+    {"From": 0x03A1, "To": 0x03C1},
+    {"From": 0x03A3, "To": 0x03C2},
+    {"From": 0x03A6, "To": 0x03C6},
+    {"From": 0x03A9, "To": 0x03C9},
+    {"From": 0x03B2, "To": 0x03D0},
+    {"From": 0x03B5, "To": 0x03F5},
+    {"From": 0x03B8, "To": 0x03D1},
+    {"From": 0x03B9, "To": 0x1FBE},
+    {"From": 0x03BA, "To": 0x03F0},
+    {"From": 0x03BC, "To": 0x00B5},
+    {"From": 0x03C0, "To": 0x03D6},
+    {"From": 0x03C1, "To": 0x03F1},
+    {"From": 0x03C2, "To": 0x03C3},
+    {"From": 0x03C3, "To": 0x03A3},
+    {"From": 0x03C6, "To": 0x03D5},
+    {"From": 0x03C9, "To": 0x2126},
+    {"From": 0x03D0, "To": 0x0392},
+    {"From": 0x03D1, "To": 0x03F4},
+    {"From": 0x03D5, "To": 0x03A6},
+    {"From": 0x03D6, "To": 0x03A0},
+    {"From": 0x03F0, "To": 0x039A},
+    {"From": 0x03F1, "To": 0x03A1},
+    {"From": 0x03F4, "To": 0x0398},
+    {"From": 0x03F5, "To": 0x0395},
+    {"From": 0x0412, "To": 0x0432},
+    {"From": 0x0414, "To": 0x0434},
+    {"From": 0x041E, "To": 0x043E},
+    {"From": 0x0421, "To": 0x0441},
+    {"From": 0x0422, "To": 0x0442},
+    {"From": 0x042A, "To": 0x044A},
+    {"From": 0x0432, "To": 0x1C80},
+    {"From": 0x0434, "To": 0x1C81},
+    {"From": 0x043E, "To": 0x1C82},
+    {"From": 0x0441, "To": 0x1C83},
+    {"From": 0x0442, "To": 0x1C84},
+    {"From": 0x044A, "To": 0x1C86},
+    {"From": 0x0462, "To": 0x0463},
+    {"From": 0x0463, "To": 0x1C87},
+    {"From": 0x1C80, "To": 0x0412},
+    {"From": 0x1C81, "To": 0x0414},
+    {"From": 0x1C82, "To": 0x041E},
+    {"From": 0x1C83, "To": 0x0421},
+    {"From": 0x1C84, "To": 0x1C85},
+    {"From": 0x1C85, "To": 0x0422},
+    {"From": 0x1C86, "To": 0x042A},
+    {"From": 0x1C87, "To": 0x0462},
+    {"From": 0x1C88, "To": 0xA64A},
+    {"From": 0x1E60, "To": 0x1E61},
+    {"From": 0x1E61, "To": 0x1E9B},
+    {"From": 0x1E9B, "To": 0x1E60},
+    {"From": 0x1E9E, "To": 0x00DF},
+    {"From": 0x1FBE, "To": 0x0345},
+    {"From": 0x2126, "To": 0x03A9},
+    {"From": 0x212A, "To": 0x004B},
+    {"From": 0x212B, "To": 0x00C5},
+    {"From": 0xA64A, "To": 0xA64B},
+    {"From": 0xA64B, "To": 0x1C88},
+]
+
+
+###############################################################
 # Package strings implements simple functions to manipulate UTF-8 encoded strings.
 #
 # For information about UTF-8 strings in Go, see https://blog.golang.org/strings.
@@ -193,13 +495,13 @@ def strings_EqualFold(s, t):
 
     # ASCII fast path
     i = 0
-    for _ in range(len(s + t)):
+    for _ in s + t:
         if not (i < len(s) and i < len(t)):
             break
         sr = s[i]
         tr = t[i]
         if sr | tr >= utf8_RuneSelf:
-            return strings_EqualFold_hasUnicode(s[i:], t[i:])  # goto hasUnicode
+            return strings_EqualFold_hasUnicode(s[i:], t[i:])
         i += 1
 
         # Easy case.
@@ -217,16 +519,13 @@ def strings_EqualFold(s, t):
     return len(s) == len(t)
 
 
-def strings_EqualFold_hasUnicode(s, t):  # hasUnicode:
-    # s = s[i:]
-    # t = t[i:]
+def strings_EqualFold_hasUnicode(s, t):
     for _, sr in enumerate(s):
         # If t is exhausted the strings are not equal.
         if len(t) == 0:
             return False
 
         # Extract first rune from second string.
-        # var tr rune
         if t[0] < utf8_RuneSelf:
             tr, t = rune(t[0]), t[1:]
         else:
@@ -251,11 +550,11 @@ def strings_EqualFold_hasUnicode(s, t):  # hasUnicode:
 
         # General case. SimpleFold(x) returns the next equivalent rune > x
         # or wraps around to smaller values.
-        r = SimpleFold(sr)
-        for _ in range():
+        r = unicode_SimpleFold(sr)
+        for _ in InfiniteLoop:
             if not (r != sr and r < tr):
                 break
-            r = SimpleFold(r)
+            r = unicode_SimpleFold(r)
         if r == tr:
             continue
         return False
