@@ -170,24 +170,11 @@ def utf8_DecodeRuneInString(s):
     if s2 < utf8_locb or utf8_hicb < s2:
         return utf8_RuneError, 1
     if sz <= 3:
-        return (
-            0
-            | rune(s0 & utf8_mask3) << 12
-            | rune(s1 & utf8_maskx) << 6
-            | rune(s2 & utf8_maskx),
-            3,
-        )
+        return rune(s0 & utf8_mask3) << 12 | rune(s1 & utf8_maskx) << 6 | rune(s2 & utf8_maskx), 3  # fmt: skip
     s3 = s[3]
     if s3 < utf8_locb or utf8_hicb < s3:
         return utf8_RuneError, 1
-    return (
-        0
-        | rune(s0 & utf8_mask4) << 18
-        | rune(s1 & utf8_maskx) << 12
-        | rune(s2 & utf8_maskx) << 6
-        | rune(s3 & utf8_maskx),
-        4,
-    )
+    return rune(s0 & utf8_mask4) << 18 | rune(s1 & utf8_maskx) << 12 | rune(s2 & utf8_maskx) << 6 | rune(s3 & utf8_maskx), 4  # fmt: skip
 
 
 ###############################################################
@@ -201,18 +188,19 @@ def utf8_DecodeRuneInString(s):
 # are equal under simple Unicode case-folding, which is a more general
 # form of case-insensitivity.
 def EqualFold(s, t):
-    s = list(s.codepoints())
-    t = list(t.codepoints())
+    s = elem_ords(s)
+    t = elem_ords(t)
 
     # ASCII fast path
     i = 0
-    for _ in range(slen(s) + slen(t)):
-        if not (i < slen(s) and i < slen(t)):
+    for _ in range(len(s + t)):
+        if not (i < len(s) and i < len(t)):
             break
         sr = s[i]
         tr = t[i]
-        if ord(sr) | ord(tr) >= RuneSelf:
-            return hasUnicode(s[i:], t[i:])
+        if sr | tr >= utf8_RuneSelf:
+            # hasUnicode
+            pass
         i += 1
 
         # Easy case.
@@ -223,7 +211,7 @@ def EqualFold(s, t):
         if tr < sr:
             tr, sr = sr, tr
         # ASCII only, sr/tr must be upper/lower case
-        if "A" <= sr and sr <= "Z" and tr == chr(ord(sr) + ord("a") - ord("A")):
+        if ord("A") <= sr and sr <= ord("Z") and tr == sr + ord("a") - ord("A"):
             continue
         return False
     # Check if we've exhausted both strings.
