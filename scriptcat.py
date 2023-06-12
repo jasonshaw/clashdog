@@ -199,8 +199,7 @@ def strings_EqualFold(s, t):
         sr = s[i]
         tr = t[i]
         if sr | tr >= utf8_RuneSelf:
-            # goto hasUnicode
-            pass
+            return strings_EqualFold_hasUnicode(s[i:], t[i:])  # goto hasUnicode
         i += 1
 
         # Easy case.
@@ -218,17 +217,48 @@ def strings_EqualFold(s, t):
     return len(s) == len(t)
 
 
-def hasUnicode(s, t):
+def strings_EqualFold_hasUnicode(s, t):  # hasUnicode:
+    # s = s[i:]
+    # t = t[i:]
     for _, sr in enumerate(s):
         # If t is exhausted the strings are not equal.
         if len(t) == 0:
             return False
 
         # Extract first rune from second string.
-        if t[0] < RuneSelf:
-            tr, t = t[0], t[1:]
+        # var tr rune
+        if t[0] < utf8_RuneSelf:
+            tr, t = rune(t[0]), t[1:]
         else:
-            r, size = DecodeRuneInString
+            r, size = utf8_DecodeRuneInString(t)
+            tr, t = r, t[size:]
+
+        # If they match, keep going; if not, return false.
+
+        # Easy case.
+        if tr == sr:
+            continue
+
+        # Make sr < tr to simplify what follows.
+        if tr < sr:
+            tr, sr = sr, tr
+        # Fast check for ASCII.
+        if tr < utf8_RuneSelf:
+            # ASCII only, sr/tr must be upper/lower case
+            if rune('A') <= sr and sr <= rune('Z') and tr == sr + rune('a') - rune('A'):
+                continue
+            return False
+
+        # General case. SimpleFold(x) returns the next equivalent rune > x
+        # or wraps around to smaller values.
+        r = SimpleFold(sr)
+        for _ in range():
+            if not (r != sr and r < tr):
+                break
+            r = SimpleFold(r)
+        if r == tr:
+            continue
+        return False
 
     # First string is empty, so check if the second one is also empty.
     return len(t) == 0
