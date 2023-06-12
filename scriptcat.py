@@ -61,7 +61,7 @@ def slen(s):
 # https://github.com/golang/go/blob/master/src/unicode/utf8/utf8.go
 ###############################################################
 # Numbers fundamental to the encoding.
-utf8_RuneError = rune("\uFFFD")  # the "error" Rune or "Unicode replacement character"
+utf8_RuneError = rune('\uFFFD')  # the "error" Rune or "Unicode replacement character"
 utf8_RuneSelf = 0x80  # characters below RuneSelf are represented as themselves in a single byte. fmt: skip
 
 utf8_maskx = 0b00111111
@@ -187,7 +187,7 @@ def utf8_DecodeRuneInString(s):
 # EqualFold reports whether s and t, interpreted as UTF-8 strings,
 # are equal under simple Unicode case-folding, which is a more general
 # form of case-insensitivity.
-def EqualFold(s, t):
+def strings_EqualFold(s, t):
     s = elem_ords(s)
     t = elem_ords(t)
 
@@ -199,7 +199,7 @@ def EqualFold(s, t):
         sr = s[i]
         tr = t[i]
         if sr | tr >= utf8_RuneSelf:
-            # hasUnicode
+            # goto hasUnicode
             pass
         i += 1
 
@@ -211,7 +211,7 @@ def EqualFold(s, t):
         if tr < sr:
             tr, sr = sr, tr
         # ASCII only, sr/tr must be upper/lower case
-        if ord("A") <= sr and sr <= ord("Z") and tr == sr + ord("a") - ord("A"):
+        if rune('A') <= sr and sr <= rune('Z') and tr == sr + rune('a') - rune('A'):
             continue
         return False
     # Check if we've exhausted both strings.
