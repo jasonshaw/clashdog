@@ -188,14 +188,101 @@ def utf8_DecodeRuneInString(s):
 # https://github.com/golang/go/blob/master/src/unicode/tables.go
 ###############################################################
 unicode_MaxRune = rune('\U0010FFFF')  # Maximum valid Unicode code point.
+unicode_ReplacementChar = rune('\uFFFD')  # Represents invalid code points.
+unicode_MaxASCII = rune('\u007F')  # maximum ASCII value.
+
+# // CaseRange represents a range of Unicode code points for simple (one
+# // code point to one code point) case conversion.
+# // The range runs from Lo to Hi inclusive, with a fixed stride of 1. Deltas
+# // are the number to add to the code point to reach the code point for a
+# // different case for that character. They may be negative. If zero, it
+# // means the character is in the corresponding case. There is a special
+# // case representing sequences of alternating corresponding Upper and Lower
+# // pairs. It appears with a fixed Delta of
+# //
+# //	{UpperLower, UpperLower, UpperLower}
+# //
+# // The constant UpperLower has an otherwise impossible delta value.
+# type CaseRange struct {
+#   Lo    uint32
+#   Hi    uint32
+#   Delta d
+# }
+
+# // Indices into the Delta arrays inside CaseRanges for case mapping.
+# const (
+#   UpperCase = iota
+#   LowerCase
+#   TitleCase
+#   MaxCase
+# )
+unicode_UpperCase = 0
+unicode_LowerCase = 1
+unicode_MaxCase = 3
+
+# type d [MaxCase]rune // to make the CaseRanges text shorter
+
+# If the Delta field of a CaseRange is UpperLower, it means
+# this CaseRange represents a sequence of the form (say)
+# Upper Lower Upper Lower.
+unicode_UpperLower = unicode_MaxRune + 1  # (Cannot be a valid delta.)
 
 
-def ToUpper():
-    pass
+# to maps the rune using the specified case mapping.
+# It additionally reports whether caseRange contained a mapping for r.
+def to(_case, r, caseRange):
+    if _case < 0 or unicode_MaxCase <= _case:
+        return unicode_ReplacementChar, False  # as reasonable an error as any
+    # binary search over ranges
+    lo = 0
+    hi = len(caseRange)
+    for _ in InfiniteLoop:
+        m = lo + (hi - lo) / 2
+        cr = caseRange[m]
+        if rune(cr["Lo"]) <= r and r <= rune(cr["Hi"]):
+            delta = cr["Delta"][_case]
+            if delta > unicode_MaxRune:
+                # In an Upper-Lower sequence, which always starts with
+                # an UpperCase letter, the real deltas always look like:
+                #   {0, 1, 0}    UpperCase (Lower is next)
+                #   {-1, 0, -1}  LowerCase (Upper, Title are previous)
+                # The characters at even offsets from the beginning of the
+                # sequence are upper case; the ones at odd offsets are lower.
+                # The correct mapping can be done by clearing or setting the low
+                # bit in the sequence offset.
+                # The constants UpperCase and TitleCase are even while LowerCase
+                # is odd so we take the low bit from _case.
+                return rune(cr["Lo"]) + ((r - rune(cr["Lo"])) & ~1 | rune(_case & 1)), True  # fmt: skip
+            return r + delta, True
+        if r < rune(cr["Lo"]):
+            hi = m
+        else:
+            lo = m + 1
+    return r, False
 
 
-def ToLower():
-    pass
+# To maps the rune to the specified case: UpperCase, LowerCase, or TitleCase.
+def To(_case, r):
+    r, _ = to(_case, r, unicode_CaseRanges)
+    return r
+
+
+# ToUpper maps the rune to upper case.
+def unicode_ToUpper(r):
+    if r <= unicode_MaxASCII:
+        if rune('a') <= r and r <= rune('z'):
+            r -= rune('a') - rune('A')
+        return r
+    return To(unicode_UpperCase, r)
+
+
+# ToLower maps the rune to lower case.
+def unicode_ToLower(r):
+    if r <= unicode_MaxASCII:
+        if rune('A') <= r and r <= rune('Z'):
+            r += rune('a') - rune('A')
+        return r
+    return To(unicode_LowerCase, r)
 
 
 # // caseOrbit is defined in tables.go as []foldPair. Right now all the
@@ -230,33 +317,368 @@ def unicode_SimpleFold(r):
     if r < 0 or r > unicode_MaxRune:
         return r
 
-    if int(r) < len(asciiFold):
-        return rune(asciiFold[r])
+    if int(r) < len(unicode_asciiFold):
+        return rune(unicode_asciiFold[r])
 
     # Consult caseOrbit table for special cases.
     lo = 0
-    hi = len(caseOrbit)
-    for _ in caseOrbit:
+    hi = len(unicode_caseOrbit)
+    for _ in InfiniteLoop:
         if not lo < hi:
             break
         m = lo + (hi - lo) / 2
-        if rune(caseOrbit[m]["From"] < r):
+        if rune(unicode_caseOrbit[m]["From"] < r):
             lo = m + 1
         else:
             hi = m
-    if lo < len(caseOrbit) and rune(caseOrbit[lo]["From"]) == r:
-        return rune(caseOrbit[lo]["To"])
+    if lo < len(unicode_caseOrbit) and rune(unicode_caseOrbit[lo]["From"]) == r:
+        return rune(unicode_caseOrbit[lo]["To"])
 
     # No folding specified. This is a one- or two-element
     # equivalence class containing rune and ToLower(rune)
     # and ToUpper(rune) if they are different from rune.
-    l = ToLower(r)
+    l = unicode_ToLower(r)
     if l != r:
         return l
-    return ToUpper(r)
+    return unicode_ToUpper(r)
 
 
-asciiFold = [
+# fmt: off
+# CaseRanges is the table describing case mappings for all letters with
+# non-self mappings.
+unicode_CaseRanges = [
+    {"Lo": 0x0041, "Hi": 0x005A, "Delta": [0, 32, 0]},
+    {"Lo": 0x0061, "Hi": 0x007A, "Delta": [-32, 0, -32]},
+    {"Lo": 0x00B5, "Hi": 0x00B5, "Delta": [743, 0, 743]},
+    {"Lo": 0x00C0, "Hi": 0x00D6, "Delta": [0, 32, 0]},
+    {"Lo": 0x00D8, "Hi": 0x00DE, "Delta": [0, 32, 0]},
+    {"Lo": 0x00E0, "Hi": 0x00F6, "Delta": [-32, 0, -32]},
+    {"Lo": 0x00F8, "Hi": 0x00FE, "Delta": [-32, 0, -32]},
+    {"Lo": 0x00FF, "Hi": 0x00FF, "Delta": [121, 0, 121]},
+    {"Lo": 0x0100, "Hi": 0x012F, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0130, "Hi": 0x0130, "Delta": [0, -199, 0]},
+    {"Lo": 0x0131, "Hi": 0x0131, "Delta": [-232, 0, -232]},
+    {"Lo": 0x0132, "Hi": 0x0137, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0139, "Hi": 0x0148, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x014A, "Hi": 0x0177, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0178, "Hi": 0x0178, "Delta": [0, -121, 0]},
+    {"Lo": 0x0179, "Hi": 0x017E, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x017F, "Hi": 0x017F, "Delta": [-300, 0, -300]},
+    {"Lo": 0x0180, "Hi": 0x0180, "Delta": [195, 0, 195]},
+    {"Lo": 0x0181, "Hi": 0x0181, "Delta": [0, 210, 0]},
+    {"Lo": 0x0182, "Hi": 0x0185, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0186, "Hi": 0x0186, "Delta": [0, 206, 0]},
+    {"Lo": 0x0187, "Hi": 0x0188, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0189, "Hi": 0x018A, "Delta": [0, 205, 0]},
+    {"Lo": 0x018B, "Hi": 0x018C, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x018E, "Hi": 0x018E, "Delta": [0, 79, 0]},
+    {"Lo": 0x018F, "Hi": 0x018F, "Delta": [0, 202, 0]},
+    {"Lo": 0x0190, "Hi": 0x0190, "Delta": [0, 203, 0]},
+    {"Lo": 0x0191, "Hi": 0x0192, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0193, "Hi": 0x0193, "Delta": [0, 205, 0]},
+    {"Lo": 0x0194, "Hi": 0x0194, "Delta": [0, 207, 0]},
+    {"Lo": 0x0195, "Hi": 0x0195, "Delta": [97, 0, 97]},
+    {"Lo": 0x0196, "Hi": 0x0196, "Delta": [0, 211, 0]},
+    {"Lo": 0x0197, "Hi": 0x0197, "Delta": [0, 209, 0]},
+    {"Lo": 0x0198, "Hi": 0x0199, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x019A, "Hi": 0x019A, "Delta": [163, 0, 163]},
+    {"Lo": 0x019C, "Hi": 0x019C, "Delta": [0, 211, 0]},
+    {"Lo": 0x019D, "Hi": 0x019D, "Delta": [0, 213, 0]},
+    {"Lo": 0x019E, "Hi": 0x019E, "Delta": [130, 0, 130]},
+    {"Lo": 0x019F, "Hi": 0x019F, "Delta": [0, 214, 0]},
+    {"Lo": 0x01A0, "Hi": 0x01A5, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01A6, "Hi": 0x01A6, "Delta": [0, 218, 0]},
+    {"Lo": 0x01A7, "Hi": 0x01A8, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01A9, "Hi": 0x01A9, "Delta": [0, 218, 0]},
+    {"Lo": 0x01AC, "Hi": 0x01AD, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01AE, "Hi": 0x01AE, "Delta": [0, 218, 0]},
+    {"Lo": 0x01AF, "Hi": 0x01B0, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01B1, "Hi": 0x01B2, "Delta": [0, 217, 0]},
+    {"Lo": 0x01B3, "Hi": 0x01B6, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01B7, "Hi": 0x01B7, "Delta": [0, 219, 0]},
+    {"Lo": 0x01B8, "Hi": 0x01B9, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01BC, "Hi": 0x01BD, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01BF, "Hi": 0x01BF, "Delta": [56, 0, 56]},
+    {"Lo": 0x01C4, "Hi": 0x01C4, "Delta": [0, 2, 1]},
+    {"Lo": 0x01C5, "Hi": 0x01C5, "Delta": [-1, 1, 0]},
+    {"Lo": 0x01C6, "Hi": 0x01C6, "Delta": [-2, 0, -1]},
+    {"Lo": 0x01C7, "Hi": 0x01C7, "Delta": [0, 2, 1]},
+    {"Lo": 0x01C8, "Hi": 0x01C8, "Delta": [-1, 1, 0]},
+    {"Lo": 0x01C9, "Hi": 0x01C9, "Delta": [-2, 0, -1]},
+    {"Lo": 0x01CA, "Hi": 0x01CA, "Delta": [0, 2, 1]},
+    {"Lo": 0x01CB, "Hi": 0x01CB, "Delta": [-1, 1, 0]},
+    {"Lo": 0x01CC, "Hi": 0x01CC, "Delta": [-2, 0, -1]},
+    {"Lo": 0x01CD, "Hi": 0x01DC, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01DD, "Hi": 0x01DD, "Delta": [-79, 0, -79]},
+    {"Lo": 0x01DE, "Hi": 0x01EF, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01F1, "Hi": 0x01F1, "Delta": [0, 2, 1]},
+    {"Lo": 0x01F2, "Hi": 0x01F2, "Delta": [-1, 1, 0]},
+    {"Lo": 0x01F3, "Hi": 0x01F3, "Delta": [-2, 0, -1]},
+    {"Lo": 0x01F4, "Hi": 0x01F5, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x01F6, "Hi": 0x01F6, "Delta": [0, -97, 0]},
+    {"Lo": 0x01F7, "Hi": 0x01F7, "Delta": [0, -56, 0]},
+    {"Lo": 0x01F8, "Hi": 0x021F, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0220, "Hi": 0x0220, "Delta": [0, -130, 0]},
+    {"Lo": 0x0222, "Hi": 0x0233, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x023A, "Hi": 0x023A, "Delta": [0, 10795, 0]},
+    {"Lo": 0x023B, "Hi": 0x023C, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x023D, "Hi": 0x023D, "Delta": [0, -163, 0]},
+    {"Lo": 0x023E, "Hi": 0x023E, "Delta": [0, 10792, 0]},
+    {"Lo": 0x023F, "Hi": 0x0240, "Delta": [10815, 0, 10815]},
+    {"Lo": 0x0241, "Hi": 0x0242, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0243, "Hi": 0x0243, "Delta": [0, -195, 0]},
+    {"Lo": 0x0244, "Hi": 0x0244, "Delta": [0, 69, 0]},
+    {"Lo": 0x0245, "Hi": 0x0245, "Delta": [0, 71, 0]},
+    {"Lo": 0x0246, "Hi": 0x024F, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0250, "Hi": 0x0250, "Delta": [10783, 0, 10783]},
+    {"Lo": 0x0251, "Hi": 0x0251, "Delta": [10780, 0, 10780]},
+    {"Lo": 0x0252, "Hi": 0x0252, "Delta": [10782, 0, 10782]},
+    {"Lo": 0x0253, "Hi": 0x0253, "Delta": [-210, 0, -210]},
+    {"Lo": 0x0254, "Hi": 0x0254, "Delta": [-206, 0, -206]},
+    {"Lo": 0x0256, "Hi": 0x0257, "Delta": [-205, 0, -205]},
+    {"Lo": 0x0259, "Hi": 0x0259, "Delta": [-202, 0, -202]},
+    {"Lo": 0x025B, "Hi": 0x025B, "Delta": [-203, 0, -203]},
+    {"Lo": 0x025C, "Hi": 0x025C, "Delta": [42319, 0, 42319]},
+    {"Lo": 0x0260, "Hi": 0x0260, "Delta": [-205, 0, -205]},
+    {"Lo": 0x0261, "Hi": 0x0261, "Delta": [42315, 0, 42315]},
+    {"Lo": 0x0263, "Hi": 0x0263, "Delta": [-207, 0, -207]},
+    {"Lo": 0x0265, "Hi": 0x0265, "Delta": [42280, 0, 42280]},
+    {"Lo": 0x0266, "Hi": 0x0266, "Delta": [42308, 0, 42308]},
+    {"Lo": 0x0268, "Hi": 0x0268, "Delta": [-209, 0, -209]},
+    {"Lo": 0x0269, "Hi": 0x0269, "Delta": [-211, 0, -211]},
+    {"Lo": 0x026A, "Hi": 0x026A, "Delta": [42308, 0, 42308]},
+    {"Lo": 0x026B, "Hi": 0x026B, "Delta": [10743, 0, 10743]},
+    {"Lo": 0x026C, "Hi": 0x026C, "Delta": [42305, 0, 42305]},
+    {"Lo": 0x026F, "Hi": 0x026F, "Delta": [-211, 0, -211]},
+    {"Lo": 0x0271, "Hi": 0x0271, "Delta": [10749, 0, 10749]},
+    {"Lo": 0x0272, "Hi": 0x0272, "Delta": [-213, 0, -213]},
+    {"Lo": 0x0275, "Hi": 0x0275, "Delta": [-214, 0, -214]},
+    {"Lo": 0x027D, "Hi": 0x027D, "Delta": [10727, 0, 10727]},
+    {"Lo": 0x0280, "Hi": 0x0280, "Delta": [-218, 0, -218]},
+    {"Lo": 0x0282, "Hi": 0x0282, "Delta": [42307, 0, 42307]},
+    {"Lo": 0x0283, "Hi": 0x0283, "Delta": [-218, 0, -218]},
+    {"Lo": 0x0287, "Hi": 0x0287, "Delta": [42282, 0, 42282]},
+    {"Lo": 0x0288, "Hi": 0x0288, "Delta": [-218, 0, -218]},
+    {"Lo": 0x0289, "Hi": 0x0289, "Delta": [-69, 0, -69]},
+    {"Lo": 0x028A, "Hi": 0x028B, "Delta": [-217, 0, -217]},
+    {"Lo": 0x028C, "Hi": 0x028C, "Delta": [-71, 0, -71]},
+    {"Lo": 0x0292, "Hi": 0x0292, "Delta": [-219, 0, -219]},
+    {"Lo": 0x029D, "Hi": 0x029D, "Delta": [42261, 0, 42261]},
+    {"Lo": 0x029E, "Hi": 0x029E, "Delta": [42258, 0, 42258]},
+    {"Lo": 0x0345, "Hi": 0x0345, "Delta": [84, 0, 84]},
+    {"Lo": 0x0370, "Hi": 0x0373, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0376, "Hi": 0x0377, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x037B, "Hi": 0x037D, "Delta": [130, 0, 130]},
+    {"Lo": 0x037F, "Hi": 0x037F, "Delta": [0, 116, 0]},
+    {"Lo": 0x0386, "Hi": 0x0386, "Delta": [0, 38, 0]},
+    {"Lo": 0x0388, "Hi": 0x038A, "Delta": [0, 37, 0]},
+    {"Lo": 0x038C, "Hi": 0x038C, "Delta": [0, 64, 0]},
+    {"Lo": 0x038E, "Hi": 0x038F, "Delta": [0, 63, 0]},
+    {"Lo": 0x0391, "Hi": 0x03A1, "Delta": [0, 32, 0]},
+    {"Lo": 0x03A3, "Hi": 0x03AB, "Delta": [0, 32, 0]},
+    {"Lo": 0x03AC, "Hi": 0x03AC, "Delta": [-38, 0, -38]},
+    {"Lo": 0x03AD, "Hi": 0x03AF, "Delta": [-37, 0, -37]},
+    {"Lo": 0x03B1, "Hi": 0x03C1, "Delta": [-32, 0, -32]},
+    {"Lo": 0x03C2, "Hi": 0x03C2, "Delta": [-31, 0, -31]},
+    {"Lo": 0x03C3, "Hi": 0x03CB, "Delta": [-32, 0, -32]},
+    {"Lo": 0x03CC, "Hi": 0x03CC, "Delta": [-64, 0, -64]},
+    {"Lo": 0x03CD, "Hi": 0x03CE, "Delta": [-63, 0, -63]},
+    {"Lo": 0x03CF, "Hi": 0x03CF, "Delta": [0, 8, 0]},
+    {"Lo": 0x03D0, "Hi": 0x03D0, "Delta": [-62, 0, -62]},
+    {"Lo": 0x03D1, "Hi": 0x03D1, "Delta": [-57, 0, -57]},
+    {"Lo": 0x03D5, "Hi": 0x03D5, "Delta": [-47, 0, -47]},
+    {"Lo": 0x03D6, "Hi": 0x03D6, "Delta": [-54, 0, -54]},
+    {"Lo": 0x03D7, "Hi": 0x03D7, "Delta": [-8, 0, -8]},
+    {"Lo": 0x03D8, "Hi": 0x03EF, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x03F0, "Hi": 0x03F0, "Delta": [-86, 0, -86]},
+    {"Lo": 0x03F1, "Hi": 0x03F1, "Delta": [-80, 0, -80]},
+    {"Lo": 0x03F2, "Hi": 0x03F2, "Delta": [7, 0, 7]},
+    {"Lo": 0x03F3, "Hi": 0x03F3, "Delta": [-116, 0, -116]},
+    {"Lo": 0x03F4, "Hi": 0x03F4, "Delta": [0, -60, 0]},
+    {"Lo": 0x03F5, "Hi": 0x03F5, "Delta": [-96, 0, -96]},
+    {"Lo": 0x03F7, "Hi": 0x03F8, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x03F9, "Hi": 0x03F9, "Delta": [0, -7, 0]},
+    {"Lo": 0x03FA, "Hi": 0x03FB, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x03FD, "Hi": 0x03FF, "Delta": [0, -130, 0]},
+    {"Lo": 0x0400, "Hi": 0x040F, "Delta": [0, 80, 0]},
+    {"Lo": 0x0410, "Hi": 0x042F, "Delta": [0, 32, 0]},
+    {"Lo": 0x0430, "Hi": 0x044F, "Delta": [-32, 0, -32]},
+    {"Lo": 0x0450, "Hi": 0x045F, "Delta": [-80, 0, -80]},
+    {"Lo": 0x0460, "Hi": 0x0481, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x048A, "Hi": 0x04BF, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x04C0, "Hi": 0x04C0, "Delta": [0, 15, 0]},
+    {"Lo": 0x04C1, "Hi": 0x04CE, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x04CF, "Hi": 0x04CF, "Delta": [-15, 0, -15]},
+    {"Lo": 0x04D0, "Hi": 0x052F, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x0531, "Hi": 0x0556, "Delta": [0, 48, 0]},
+    {"Lo": 0x0561, "Hi": 0x0586, "Delta": [-48, 0, -48]},
+    {"Lo": 0x10A0, "Hi": 0x10C5, "Delta": [0, 7264, 0]},
+    {"Lo": 0x10C7, "Hi": 0x10C7, "Delta": [0, 7264, 0]},
+    {"Lo": 0x10CD, "Hi": 0x10CD, "Delta": [0, 7264, 0]},
+    {"Lo": 0x10D0, "Hi": 0x10FA, "Delta": [3008, 0, 0]},
+    {"Lo": 0x10FD, "Hi": 0x10FF, "Delta": [3008, 0, 0]},
+    {"Lo": 0x13A0, "Hi": 0x13EF, "Delta": [0, 38864, 0]},
+    {"Lo": 0x13F0, "Hi": 0x13F5, "Delta": [0, 8, 0]},
+    {"Lo": 0x13F8, "Hi": 0x13FD, "Delta": [-8, 0, -8]},
+    {"Lo": 0x1C80, "Hi": 0x1C80, "Delta": [-6254, 0, -6254]},
+    {"Lo": 0x1C81, "Hi": 0x1C81, "Delta": [-6253, 0, -6253]},
+    {"Lo": 0x1C82, "Hi": 0x1C82, "Delta": [-6244, 0, -6244]},
+    {"Lo": 0x1C83, "Hi": 0x1C84, "Delta": [-6242, 0, -6242]},
+    {"Lo": 0x1C85, "Hi": 0x1C85, "Delta": [-6243, 0, -6243]},
+    {"Lo": 0x1C86, "Hi": 0x1C86, "Delta": [-6236, 0, -6236]},
+    {"Lo": 0x1C87, "Hi": 0x1C87, "Delta": [-6181, 0, -6181]},
+    {"Lo": 0x1C88, "Hi": 0x1C88, "Delta": [35266, 0, 35266]},
+    {"Lo": 0x1C90, "Hi": 0x1CBA, "Delta": [0, -3008, 0]},
+    {"Lo": 0x1CBD, "Hi": 0x1CBF, "Delta": [0, -3008, 0]},
+    {"Lo": 0x1D79, "Hi": 0x1D79, "Delta": [35332, 0, 35332]},
+    {"Lo": 0x1D7D, "Hi": 0x1D7D, "Delta": [3814, 0, 3814]},
+    {"Lo": 0x1D8E, "Hi": 0x1D8E, "Delta": [35384, 0, 35384]},
+    {"Lo": 0x1E00, "Hi": 0x1E95, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x1E9B, "Hi": 0x1E9B, "Delta": [-59, 0, -59]},
+    {"Lo": 0x1E9E, "Hi": 0x1E9E, "Delta": [0, -7615, 0]},
+    {"Lo": 0x1EA0, "Hi": 0x1EFF, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x1F00, "Hi": 0x1F07, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F08, "Hi": 0x1F0F, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F10, "Hi": 0x1F15, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F18, "Hi": 0x1F1D, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F20, "Hi": 0x1F27, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F28, "Hi": 0x1F2F, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F30, "Hi": 0x1F37, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F38, "Hi": 0x1F3F, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F40, "Hi": 0x1F45, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F48, "Hi": 0x1F4D, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F51, "Hi": 0x1F51, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F53, "Hi": 0x1F53, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F55, "Hi": 0x1F55, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F57, "Hi": 0x1F57, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F59, "Hi": 0x1F59, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F5B, "Hi": 0x1F5B, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F5D, "Hi": 0x1F5D, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F5F, "Hi": 0x1F5F, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F60, "Hi": 0x1F67, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F68, "Hi": 0x1F6F, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F70, "Hi": 0x1F71, "Delta": [74, 0, 74]},
+    {"Lo": 0x1F72, "Hi": 0x1F75, "Delta": [86, 0, 86]},
+    {"Lo": 0x1F76, "Hi": 0x1F77, "Delta": [100, 0, 100]},
+    {"Lo": 0x1F78, "Hi": 0x1F79, "Delta": [128, 0, 128]},
+    {"Lo": 0x1F7A, "Hi": 0x1F7B, "Delta": [112, 0, 112]},
+    {"Lo": 0x1F7C, "Hi": 0x1F7D, "Delta": [126, 0, 126]},
+    {"Lo": 0x1F80, "Hi": 0x1F87, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F88, "Hi": 0x1F8F, "Delta": [0, -8, 0]},
+    {"Lo": 0x1F90, "Hi": 0x1F97, "Delta": [8, 0, 8]},
+    {"Lo": 0x1F98, "Hi": 0x1F9F, "Delta": [0, -8, 0]},
+    {"Lo": 0x1FA0, "Hi": 0x1FA7, "Delta": [8, 0, 8]},
+    {"Lo": 0x1FA8, "Hi": 0x1FAF, "Delta": [0, -8, 0]},
+    {"Lo": 0x1FB0, "Hi": 0x1FB1, "Delta": [8, 0, 8]},
+    {"Lo": 0x1FB3, "Hi": 0x1FB3, "Delta": [9, 0, 9]},
+    {"Lo": 0x1FB8, "Hi": 0x1FB9, "Delta": [0, -8, 0]},
+    {"Lo": 0x1FBA, "Hi": 0x1FBB, "Delta": [0, -74, 0]},
+    {"Lo": 0x1FBC, "Hi": 0x1FBC, "Delta": [0, -9, 0]},
+    {"Lo": 0x1FBE, "Hi": 0x1FBE, "Delta": [-7205, 0, -7205]},
+    {"Lo": 0x1FC3, "Hi": 0x1FC3, "Delta": [9, 0, 9]},
+    {"Lo": 0x1FC8, "Hi": 0x1FCB, "Delta": [0, -86, 0]},
+    {"Lo": 0x1FCC, "Hi": 0x1FCC, "Delta": [0, -9, 0]},
+    {"Lo": 0x1FD0, "Hi": 0x1FD1, "Delta": [8, 0, 8]},
+    {"Lo": 0x1FD8, "Hi": 0x1FD9, "Delta": [0, -8, 0]},
+    {"Lo": 0x1FDA, "Hi": 0x1FDB, "Delta": [0, -100, 0]},
+    {"Lo": 0x1FE0, "Hi": 0x1FE1, "Delta": [8, 0, 8]},
+    {"Lo": 0x1FE5, "Hi": 0x1FE5, "Delta": [7, 0, 7]},
+    {"Lo": 0x1FE8, "Hi": 0x1FE9, "Delta": [0, -8, 0]},
+    {"Lo": 0x1FEA, "Hi": 0x1FEB, "Delta": [0, -112, 0]},
+    {"Lo": 0x1FEC, "Hi": 0x1FEC, "Delta": [0, -7, 0]},
+    {"Lo": 0x1FF3, "Hi": 0x1FF3, "Delta": [9, 0, 9]},
+    {"Lo": 0x1FF8, "Hi": 0x1FF9, "Delta": [0, -128, 0]},
+    {"Lo": 0x1FFA, "Hi": 0x1FFB, "Delta": [0, -126, 0]},
+    {"Lo": 0x1FFC, "Hi": 0x1FFC, "Delta": [0, -9, 0]},
+    {"Lo": 0x2126, "Hi": 0x2126, "Delta": [0, -7517, 0]},
+    {"Lo": 0x212A, "Hi": 0x212A, "Delta": [0, -8383, 0]},
+    {"Lo": 0x212B, "Hi": 0x212B, "Delta": [0, -8262, 0]},
+    {"Lo": 0x2132, "Hi": 0x2132, "Delta": [0, 28, 0]},
+    {"Lo": 0x214E, "Hi": 0x214E, "Delta": [-28, 0, -28]},
+    {"Lo": 0x2160, "Hi": 0x216F, "Delta": [0, 16, 0]},
+    {"Lo": 0x2170, "Hi": 0x217F, "Delta": [-16, 0, -16]},
+    {"Lo": 0x2183, "Hi": 0x2184, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x24B6, "Hi": 0x24CF, "Delta": [0, 26, 0]},
+    {"Lo": 0x24D0, "Hi": 0x24E9, "Delta": [-26, 0, -26]},
+    {"Lo": 0x2C00, "Hi": 0x2C2F, "Delta": [0, 48, 0]},
+    {"Lo": 0x2C30, "Hi": 0x2C5F, "Delta": [-48, 0, -48]},
+    {"Lo": 0x2C60, "Hi": 0x2C61, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x2C62, "Hi": 0x2C62, "Delta": [0, -10743, 0]},
+    {"Lo": 0x2C63, "Hi": 0x2C63, "Delta": [0, -3814, 0]},
+    {"Lo": 0x2C64, "Hi": 0x2C64, "Delta": [0, -10727, 0]},
+    {"Lo": 0x2C65, "Hi": 0x2C65, "Delta": [-10795, 0, -10795]},
+    {"Lo": 0x2C66, "Hi": 0x2C66, "Delta": [-10792, 0, -10792]},
+    {"Lo": 0x2C67, "Hi": 0x2C6C, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x2C6D, "Hi": 0x2C6D, "Delta": [0, -10780, 0]},
+    {"Lo": 0x2C6E, "Hi": 0x2C6E, "Delta": [0, -10749, 0]},
+    {"Lo": 0x2C6F, "Hi": 0x2C6F, "Delta": [0, -10783, 0]},
+    {"Lo": 0x2C70, "Hi": 0x2C70, "Delta": [0, -10782, 0]},
+    {"Lo": 0x2C72, "Hi": 0x2C73, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x2C75, "Hi": 0x2C76, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x2C7E, "Hi": 0x2C7F, "Delta": [0, -10815, 0]},
+    {"Lo": 0x2C80, "Hi": 0x2CE3, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x2CEB, "Hi": 0x2CEE, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x2CF2, "Hi": 0x2CF3, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0x2D00, "Hi": 0x2D25, "Delta": [-7264, 0, -7264]},
+    {"Lo": 0x2D27, "Hi": 0x2D27, "Delta": [-7264, 0, -7264]},
+    {"Lo": 0x2D2D, "Hi": 0x2D2D, "Delta": [-7264, 0, -7264]},
+    {"Lo": 0xA640, "Hi": 0xA66D, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA680, "Hi": 0xA69B, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA722, "Hi": 0xA72F, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA732, "Hi": 0xA76F, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA779, "Hi": 0xA77C, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA77D, "Hi": 0xA77D, "Delta": [0, -35332, 0]},
+    {"Lo": 0xA77E, "Hi": 0xA787, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA78B, "Hi": 0xA78C, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA78D, "Hi": 0xA78D, "Delta": [0, -42280, 0]},
+    {"Lo": 0xA790, "Hi": 0xA793, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA794, "Hi": 0xA794, "Delta": [48, 0, 48]},
+    {"Lo": 0xA796, "Hi": 0xA7A9, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA7AA, "Hi": 0xA7AA, "Delta": [0, -42308, 0]},
+    {"Lo": 0xA7AB, "Hi": 0xA7AB, "Delta": [0, -42319, 0]},
+    {"Lo": 0xA7AC, "Hi": 0xA7AC, "Delta": [0, -42315, 0]},
+    {"Lo": 0xA7AD, "Hi": 0xA7AD, "Delta": [0, -42305, 0]},
+    {"Lo": 0xA7AE, "Hi": 0xA7AE, "Delta": [0, -42308, 0]},
+    {"Lo": 0xA7B0, "Hi": 0xA7B0, "Delta": [0, -42258, 0]},
+    {"Lo": 0xA7B1, "Hi": 0xA7B1, "Delta": [0, -42282, 0]},
+    {"Lo": 0xA7B2, "Hi": 0xA7B2, "Delta": [0, -42261, 0]},
+    {"Lo": 0xA7B3, "Hi": 0xA7B3, "Delta": [0, 928, 0]},
+    {"Lo": 0xA7B4, "Hi": 0xA7C3, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA7C4, "Hi": 0xA7C4, "Delta": [0, -48, 0]},
+    {"Lo": 0xA7C5, "Hi": 0xA7C5, "Delta": [0, -42307, 0]},
+    {"Lo": 0xA7C6, "Hi": 0xA7C6, "Delta": [0, -35384, 0]},
+    {"Lo": 0xA7C7, "Hi": 0xA7CA, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA7D0, "Hi": 0xA7D1, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA7D6, "Hi": 0xA7D9, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xA7F5, "Hi": 0xA7F6, "Delta": [unicode_UpperLower, unicode_UpperLower, unicode_UpperLower]},
+    {"Lo": 0xAB53, "Hi": 0xAB53, "Delta": [-928, 0, -928]},
+    {"Lo": 0xAB70, "Hi": 0xABBF, "Delta": [-38864, 0, -38864]},
+    {"Lo": 0xFF21, "Hi": 0xFF3A, "Delta": [0, 32, 0]},
+    {"Lo": 0xFF41, "Hi": 0xFF5A, "Delta": [-32, 0, -32]},
+    {"Lo": 0x10400, "Hi": 0x10427, "Delta": [0, 40, 0]},
+    {"Lo": 0x10428, "Hi": 0x1044F, "Delta": [-40, 0, -40]},
+    {"Lo": 0x104B0, "Hi": 0x104D3, "Delta": [0, 40, 0]},
+    {"Lo": 0x104D8, "Hi": 0x104FB, "Delta": [-40, 0, -40]},
+    {"Lo": 0x10570, "Hi": 0x1057A, "Delta": [0, 39, 0]},
+    {"Lo": 0x1057C, "Hi": 0x1058A, "Delta": [0, 39, 0]},
+    {"Lo": 0x1058C, "Hi": 0x10592, "Delta": [0, 39, 0]},
+    {"Lo": 0x10594, "Hi": 0x10595, "Delta": [0, 39, 0]},
+    {"Lo": 0x10597, "Hi": 0x105A1, "Delta": [-39, 0, -39]},
+    {"Lo": 0x105A3, "Hi": 0x105B1, "Delta": [-39, 0, -39]},
+    {"Lo": 0x105B3, "Hi": 0x105B9, "Delta": [-39, 0, -39]},
+    {"Lo": 0x105BB, "Hi": 0x105BC, "Delta": [-39, 0, -39]},
+    {"Lo": 0x10C80, "Hi": 0x10CB2, "Delta": [0, 64, 0]},
+    {"Lo": 0x10CC0, "Hi": 0x10CF2, "Delta": [-64, 0, -64]},
+    {"Lo": 0x118A0, "Hi": 0x118BF, "Delta": [0, 32, 0]},
+    {"Lo": 0x118C0, "Hi": 0x118DF, "Delta": [-32, 0, -32]},
+    {"Lo": 0x16E40, "Hi": 0x16E5F, "Delta": [0, 32, 0]},
+    {"Lo": 0x16E60, "Hi": 0x16E7F, "Delta": [-32, 0, -32]},
+    {"Lo": 0x1E900, "Hi": 0x1E921, "Delta": [0, 34, 0]},
+    {"Lo": 0x1E922, "Hi": 0x1E943, "Delta": [-34, 0, -34]},
+]
+# fmt: on
+
+unicode_asciiFold = [
     0x0000,
     0x0001,
     0x0002,
@@ -387,7 +809,7 @@ asciiFold = [
     0x007F,
 ]
 
-caseOrbit = [
+unicode_caseOrbit = [
     {"From": 0x004B, "To": 0x006B},
     {"From": 0x0053, "To": 0x0073},
     {"From": 0x006B, "To": 0x212A},
