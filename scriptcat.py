@@ -206,21 +206,13 @@ unicode_MaxASCII = rune('\u007F')  # maximum ASCII value.
 # type CaseRange struct {
 #   Lo    uint32
 #   Hi    uint32
-#   Delta d
+#   Delta [MaxCase]rune
 # }
 
 # // Indices into the Delta arrays inside CaseRanges for case mapping.
-# const (
-#   UpperCase = iota
-#   LowerCase
-#   TitleCase
-#   MaxCase
-# )
 unicode_UpperCase = 0
 unicode_LowerCase = 1
 unicode_MaxCase = 3
-
-# type d [MaxCase]rune // to make the CaseRanges text shorter
 
 # If the Delta field of a CaseRange is UpperLower, it means
 # this CaseRange represents a sequence of the form (say)
@@ -230,7 +222,7 @@ unicode_UpperLower = unicode_MaxRune + 1  # (Cannot be a valid delta.)
 
 # to maps the rune using the specified case mapping.
 # It additionally reports whether caseRange contained a mapping for r.
-def to(_case, r, caseRange):
+def unicode_to(_case, r, caseRange):
     if _case < 0 or unicode_MaxCase <= _case:
         return unicode_ReplacementChar, False  # as reasonable an error as any
     # binary search over ranges
@@ -264,8 +256,8 @@ def to(_case, r, caseRange):
 
 
 # To maps the rune to the specified case: UpperCase, LowerCase, or TitleCase.
-def To(_case, r):
-    r, _ = to(_case, r, unicode_CaseRanges)
+def unicode_To(_case, r):
+    r, _ = unicode_to(_case, r, unicode_CaseRanges)
     return r
 
 
@@ -275,7 +267,7 @@ def unicode_ToUpper(r):
         if rune('a') <= r and r <= rune('z'):
             r -= rune('a') - rune('A')
         return r
-    return To(unicode_UpperCase, r)
+    return unicode_To(unicode_UpperCase, r)
 
 
 # ToLower maps the rune to lower case.
@@ -284,7 +276,7 @@ def unicode_ToLower(r):
         if rune('A') <= r and r <= rune('Z'):
             r += rune('a') - rune('A')
         return r
-    return To(unicode_LowerCase, r)
+    return unicode_To(unicode_LowerCase, r)
 
 
 # // caseOrbit is defined in tables.go as []foldPair. Right now all the
