@@ -200,7 +200,7 @@ unicode_MaxASCII = rune('\u007F')  # maximum ASCII value.
 # // case representing sequences of alternating corresponding Upper and Lower
 # // pairs. It appears with a fixed Delta of
 # //
-# //	{UpperLower, UpperLower, UpperLower}
+# //    {UpperLower, UpperLower, UpperLower}
 # //
 # // The constant UpperLower has an otherwise impossible delta value.
 # type CaseRange struct {
@@ -237,6 +237,8 @@ def to(_case, r, caseRange):
     lo = 0
     hi = len(caseRange)
     for _ in InfiniteLoop:
+        if not lo < hi:
+            break
         m = lo + (hi - lo) / 2
         cr = caseRange[m]
         if rune(cr["Lo"]) <= r and r <= rune(cr["Hi"]):
